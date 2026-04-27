@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>CEL-RADIO — Sistema de Comunicación para Transporte</title>
+  <meta name="description" content="Plataforma SaaS de comunicación en tiempo real tipo radio para empresas de transporte.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card" id="loginCard">
+      <div class="login-logo">
+        <div class="icon">📻</div>
+        <h1>CEL-RADIO</h1>
+        <p>Sistema de Comunicación para Transporte</p>
+      </div>
+
+      <!-- Step 1: Master Code -->
+      <div id="step1">
+        <div class="form-group">
+          <label>Código de Acceso</label>
+          <input type="password" id="accessCode" placeholder="Ingresa tu código" maxlength="10" autocomplete="off" style="text-align:center;font-size:20px;letter-spacing:8px;font-weight:700;text-transform:uppercase">
+        </div>
+        <p id="codeError" style="text-align:center;color:var(--red);font-size:13px;margin-bottom:16px;display:none">
+          Código incorrecto. Intenta de nuevo.
+        </p>
+        <button class="btn btn-primary" id="btnAccess">
+          🔐 Ingresar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const MASTER = { '1122': { role: 'master', redirect: 'master.html' } };
+
+    const codeInput = document.getElementById('accessCode');
+    const btnAccess = document.getElementById('btnAccess');
+    const codeError = document.getElementById('codeError');
+
+    codeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnAccess.click();
+    });
+
+    btnAccess.addEventListener('click', async () => {
+      const code = codeInput.value.trim().toUpperCase();
+      // Check master code
+      if (MASTER[code]) {
+        sessionStorage.setItem('cel_auth', JSON.stringify(MASTER[code]));
+        window.location.href = MASTER[code].redirect;
+        return;
+      }
+      
+      try {
+        const resEmp = await fetch('/api/empresas').catch(() => null);
+        if (!resEmp || !resEmp.ok) throw new Error('No server');
+        
+        const empresas = await resEmp.json();
+
+        // Check director codes
+        const empresa = empresas.find(e => e.director && e.director.codigo.toUpperCase() === code);
+        if (empresa) {
+          sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'director', empresa_id: empresa.id }));
+          sessionStorage.setItem('cel_empresa', JSON.stringify(empresa));
+          window.location.href = 'admin.html';
+          return;
+        }
+
+        // Check user codes
+        for (const e of empresas) {
+          const resUsr = await fetch(`/api/usuarios/${e.id}`);
+          if (!resUsr.ok) continue;
+          const users = await resUsr.json();
+          const user = users.find(u => u.codigo && u.codigo.toUpperCase() === code);
+          if (user) {
+            sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'user', user_id: user.id }));
+            sessionStorage.setItem('cel_user', JSON.stringify(user));
+            sessionStorage.setItem('cel_empresa', JSON.stringify(e));
+            window.location.href = 'radio.html';
+            return;
+          }
+        }
+
+        codeError.textContent = 'Código incorrecto. Intenta de nuevo.';
+      } catch (err) {
+        // Fallback to localStorage if server is down (during development/transition)
+        console.warn("Server not available, falling back to local DB", err);
+        const empresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
+        const empresa = empresas.find(e => e.director && e.director.codigo.toUpperCase() === code);
+        if (empresa) {
+          sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'director', empresa_id: empresa.id }));
+          sessionStorage.setItem('cel_empresa', JSON.stringify(empresa));
+          window.location.href = 'admin.html';
+          return;
+        }
+        for (const e of empresas) {
+          const tenantUsers = JSON.parse(localStorage.getItem(`cel_users_${e.id}`) || '[]');
+          const user = tenantUsers.find(u => u.codigo && u.codigo.toUpperCase() === code);
+          if (user) {
+            sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'user', user_id: user.id }));
+            sessionStorage.setItem('cel_user', JSON.stringify(user));
+            sessionStorage.setItem('cel_empresa', JSON.stringify(e));
+            window.location.href = 'radio.html';
+            return;
+          }
+        }
+        codeError.textContent = 'Servidor no disponible / Código incorrecto.';
+      }
+      
+      codeError.style.display = 'block';
+      codeInput.value = '';
+      codeInput.focus();
+    });
+
+    codeInput.focus();
+  </script>
+</body>
+</html>

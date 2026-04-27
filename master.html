@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CEL-RADIO — Panel Programador</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .master-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 100vh;
+    }
+    .master-sidebar {
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+    .master-sidebar .logo-area {
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .master-sidebar .logo-area .icon-box {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, #ff6b35, #ff3b3b);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 12px;
+    }
+    .master-sidebar .logo-area h2 {
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(135deg, #ff6b35, #ff3b3b);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .master-sidebar .logo-area p {
+      font-size: 12px; color: var(--text-muted); margin-top: 2px;
+    }
+    .master-badge {
+      display: inline-flex; padding: 4px 10px; border-radius: var(--radius-full);
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; background: rgba(255,107,53,0.15); color: #ff6b35;
+      margin-top: 8px;
+    }
+    .empresa-list { list-style: none; flex: 1; overflow-y: auto; }
+    .empresa-list-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: var(--transition); margin-bottom: 4px;
+    }
+    .empresa-list-item:hover { background: var(--bg-glass); }
+    .empresa-list-item.active { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.2); }
+    .empresa-list-item .emp-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), #0080ff);
+    }
+    .empresa-list-item .emp-name { font-size: 14px; font-weight: 600; }
+    .empresa-list-item .emp-country { font-size: 11px; color: var(--text-secondary); }
+    .empty-list {
+      text-align: center; padding: 40px 20px; color: var(--text-muted);
+    }
+    .empty-list .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+    .master-main { padding: 32px; overflow-y: auto; }
+    .master-main h1 { font-size: 26px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .master-main .subtitle { color: var(--text-secondary); margin-bottom: 28px; font-size: 14px; }
+    .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 0;
+    }
+    .section-divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 28px 0 20px; color: var(--text-secondary); font-size: 13px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .section-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .code-display {
+      background: rgba(0,230,118,0.08); border: 2px dashed rgba(0,230,118,0.3);
+      border-radius: var(--radius); padding: 24px; text-align: center;
+      margin-top: 20px;
+    }
+    .code-display .code-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+    .code-display .code-value {
+      font-size: 36px; font-weight: 900; letter-spacing: 6px;
+      color: var(--green); font-family: 'Courier New', monospace;
+    }
+    .code-display .code-hint { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+    /* Detail card */
+    .detail-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px; margin-bottom: 20px;
+    }
+    .detail-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .label { font-size: 13px; color: var(--text-secondary); }
+    .detail-row .value { font-size: 14px; font-weight: 600; }
+    .btn-new {
+      width: 100%; padding: 14px; border: 2px dashed var(--border);
+      border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary);
+      font-family: var(--font); font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: var(--transition); margin-top: 12px;
+    }
+    .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-delete {
+      background: rgba(255,59,59,0.1); border: 1px solid rgba(255,59,59,0.3);
+      color: var(--red); padding: 10px 20px; border-radius: var(--radius-sm);
+      font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: var(--transition); margin-top: 16px;
+    }
+    .btn-delete:hover { background: rgba(255,59,59,0.2); }
+    @media(max-width:768px) {
+      .master-layout { grid-template-columns: 1fr; }
+      .master-sidebar { display: none; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="master-layout">
+    <!-- Sidebar -->
+    <aside class="master-sidebar">
+      <div class="logo-area">
+        <div class="icon-box">⚡</div>
+        <h2>CEL-RADIO</h2>
+        <p>Panel de Programador</p>
+        <div class="master-badge">🔑 Acceso Master</div>
+      </div>
+
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">
+        Empresas Registradas
+      </div>
+      <ul class="empresa-list" id="empresaList">
+        <li class="empty-list" id="emptyMsg">
+          <div class="icon">🏢</div>
+          <p>No hay empresas registradas</p>
+        </li>
+      </ul>
+
+      <button class="btn-new" id="btnNew">+ Nueva Empresa</button>
+
+      <div style="padding-top:16px;border-top:1px solid var(--border);margin-top:16px">
+        <a href="index.html" style="font-size:12px;color:var(--text-muted);text-decoration:none">← Cerrar sesión</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="master-main" id="mainContent">
+      <!-- Default: Create form -->
+      <div id="viewCreate">
+        <h1>🏢 Nueva Empresa</h1>
+        <p class="subtitle">Registra una nueva empresa en el sistema CEL-RADIO</p>
+
+        <div class="section-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:28px">
+          <div class="section-divider">🏢 Datos de la Empresa</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nombre de la Empresa *</label>
+              <input type="text" id="empNombre" placeholder="Ej: Transportes Bautista">
+            </div>
+            <div class="form-group">
+              <label>NIT *</label>
+              <input type="text" id="empNit" placeholder="Ej: 12345678-9">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Teléfono * <span id="ladaTag" style="color:var(--accent);font-weight:700"></span></label>
+              <input type="tel" id="empTelefono" placeholder="Selecciona país primero">
+            </div>
+            <div class="form-group">
+              <label>Correo Electrónico *</label>
+              <input type="email" id="empCorreo" placeholder="Ej: info@empresa.com">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>País *</label>
+              <select id="empPais">
+                <option value="">— Seleccionar —</option>
+                <option value="GT">🇬🇹 Guatemala</option>
+                <option value="MX">🇲🇽 México</option>
+                <option value="SV">🇸🇻 El Salvador</option>
+                <option value="HN">🇭🇳 Honduras</option>
+                <option value="CR">🇨🇷 Costa Rica</option>
+                <option value="PA">🇵🇦 Panamá</option>
+                <option value="NI">🇳🇮 Nicaragua</option>
+                <option value="US">🇺🇸 Estados Unidos</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Sector</label>
+              <select id="empSector">
+                <option value="transporte_pesado">🚛 Transporte Pesado</option>
+                <option value="transporte_pasajeros">🚌 Transporte de Pasajeros</option>
+                <option value="logistica">📦 Logística</option>
+                <option value="seguridad">🛡️ Seguridad</option>
+                <option value="otro">🏢 Otro</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-divider">👤 Director General</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nombre Completo *</label>
+              <input type="text" id="dirNombre" placeholder="Ej: Carlos Bautista López">
+            </div>
+            <div class="form-group">
+              <label>Número de Identificación (DPI/INE) *</label>
+              <input type="text" id="dirIdentificacion" placeholder="Ej: 1234 56789 0101">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Teléfono * <span id="ladaTag2" style="color:var(--accent);font-weight:700"></span></label>
+              <input type="tel" id="dirTelefono" placeholder="Selecciona país primero">
+            </div>
+            <div class="form-group">
+              <label>Correo Electrónico *</label>
+              <input type="email" id="dirCorreo" placeholder="Ej: director@empresa.com">
+            </div>
+          </div>
+
+          <div style="margin-top:28px;display:flex;gap:12px">
+            <button class="btn btn-primary" style="flex:1" id="btnSave">
+              ✅ Registrar Empresa
+            </button>
+          </div>
+
+          <p id="formError" style="text-align:center;color:var(--red);font-size:13px;margin-top:12px;display:none">
+            Completa todos los campos obligatorios (*)
+          </p>
+        </div>
+
+        <!-- Success: Code display (hidden by default) -->
+        <div id="successArea" style="display:none">
+          <div class="code-display" id="codeDisplay">
+            <div class="code-label">Código de Acceso del Director General</div>
+            <div class="code-value" id="generatedCode">—</div>
+            <div class="code-hint">Este código le permite ingresar al Panel Administrativo de su empresa</div>
+          </div>
+          <div style="margin-top:16px;text-align:center">
+            <button class="btn btn-primary" style="width:auto;padding:12px 32px" id="btnAnother">
+              + Registrar otra empresa
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail view (when clicking an empresa in sidebar) -->
+      <div id="viewDetail" style="display:none">
+        <h1 id="detailTitle">—</h1>
+        <p class="subtitle" id="detailSubtitle">—</p>
+
+        <div class="detail-card">
+          <h3>🏢 Datos de la Empresa</h3>
+          <div class="detail-row"><span class="label">Nombre</span><span class="value" id="dEmpNombre">—</span></div>
+          <div class="detail-row"><span class="label">NIT</span><span class="value" id="dEmpNit">—</span></div>
+          <div class="detail-row"><span class="label">Teléfono</span><span class="value" id="dEmpTel">—</span></div>
+          <div class="detail-row"><span class="label">Correo</span><span class="value" id="dEmpCorreo">—</span></div>
+          <div class="detail-row"><span class="label">País</span><span class="value" id="dEmpPais">—</span></div>
+          <div class="detail-row"><span class="label">Lada</span><span class="value" id="dEmpLada">—</span></div>
+          <div class="detail-row"><span class="label">Moneda</span><span class="value" id="dEmpMoneda">—</span></div>
+          <div class="detail-row"><span class="label">Zona Horaria</span><span class="value" id="dEmpTz">—</span></div>
+          <div class="detail-row"><span class="label">Sector</span><span class="value" id="dEmpSector">—</span></div>
+          <div class="detail-row"><span class="label">Fecha Registro</span><span class="value" id="dEmpFecha">—</span></div>
+        </div>
+
+        <div class="detail-card">
+          <h3>👤 Director General</h3>
+          <div class="detail-row"><span class="label">Nombre</span><span class="value" id="dDirNombre">—</span></div>
+          <div class="detail-row"><span class="label">Identificación</span><span class="value" id="dDirId">—</span></div>
+          <div class="detail-row"><span class="label">Teléfono</span><span class="value" id="dDirTel">—</span></div>
+          <div class="detail-row"><span class="label">Correo</span><span class="value" id="dDirCorreo">—</span></div>
+        </div>
+
+        <div class="code-display">
+          <div class="code-label">Código de Acceso del Director</div>
+          <div class="code-value" id="dDirCodigo">—</div>
+          <div class="code-hint">El director usa este código para ingresar al sistema</div>
+        </div>
+
+        <button class="btn-delete" id="btnDelete">🗑️ Eliminar Empresa</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast toast-success" id="toast"></div>
+
+  <script>
+    // =========== STATE ===========
+    let empresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
+
+    // Config completa por país: lada, moneda, símbolo, zona horaria, tipo de ID
+    const PAIS_CONFIG = {
+      GT: { nombre: '🇬🇹 Guatemala', lada: '+502', moneda: 'GTQ', simbolo: 'Q', tz: 'America/Guatemala', idLabel: 'DPI' },
+      MX: { nombre: '🇲🇽 México', lada: '+52', moneda: 'MXN', simbolo: '$', tz: 'America/Mexico_City', idLabel: 'INE/CURP' },
+      SV: { nombre: '🇸🇻 El Salvador', lada: '+503', moneda: 'USD', simbolo: '$', tz: 'America/El_Salvador', idLabel: 'DUI' },
+      HN: { nombre: '🇭🇳 Honduras', lada: '+504', moneda: 'HNL', simbolo: 'L', tz: 'America/Tegucigalpa', idLabel: 'DNI' },
+      CR: { nombre: '🇨🇷 Costa Rica', lada: '+506', moneda: 'CRC', simbolo: '₡', tz: 'America/Costa_Rica', idLabel: 'Cédula' },
+      PA: { nombre: '🇵🇦 Panamá', lada: '+507', moneda: 'PAB', simbolo: 'B/.', tz: 'America/Panama', idLabel: 'Cédula' },
+      NI: { nombre: '🇳🇮 Nicaragua', lada: '+505', moneda: 'NIO', simbolo: 'C$', tz: 'America/Managua', idLabel: 'Cédula' },
+      US: { nombre: '🇺🇸 Estados Unidos', lada: '+1', moneda: 'USD', simbolo: '$', tz: 'America/New_York', idLabel: 'SSN/ID' },
+    };
+    const PAISES = Object.fromEntries(Object.entries(PAIS_CONFIG).map(([k,v]) => [k, v.nombre]));
+    const SECTORES = {
+      transporte_pesado: '🚛 Transporte Pesado', transporte_pasajeros: '🚌 Transporte de Pasajeros',
+      logistica: '📦 Logística', seguridad: '🛡️ Seguridad', otro: '🏢 Otro'
+    };
+
+    // =========== AUTO-LADA POR PAÍS ===========
+    document.getElementById('empPais').addEventListener('change', function() {
+      const cfg = PAIS_CONFIG[this.value];
+      if (cfg) {
+        const ladaText = `(${cfg.lada})`;
+        document.getElementById('ladaTag').textContent = ladaText;
+        document.getElementById('ladaTag2').textContent = ladaText;
+        document.getElementById('empTelefono').placeholder = `Ej: ${cfg.lada} XXXX-XXXX`;
+        document.getElementById('dirTelefono').placeholder = `Ej: ${cfg.lada} XXXX-XXXX`;
+        // Update ID label based on country
+        try { document.getElementById('dirIdentificacion').closest('.form-group').querySelector('label').innerHTML = `Número de Identificación (${cfg.idLabel}) *`; } catch(e) {}
+      } else {
+        document.getElementById('ladaTag').textContent = '';
+        document.getElementById('ladaTag2').textContent = '';
+        document.getElementById('empTelefono').placeholder = 'Selecciona país primero';
+        document.getElementById('dirTelefono').placeholder = 'Selecciona país primero';
+      }
+    });
+
+    // =========== CODE GENERATOR ===========
+    function generarCodigo(nombreEmpresa) {
+      // First letter of company name (uppercase, clean accents)
+      const letra = nombreEmpresa
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+        .replace(/[^a-zA-Z]/g, '') // only letters
+        .charAt(0).toUpperCase();
+      // 5 random digits
+      const nums = Array.from({ length: 5 }, () => Math.floor(Math.random() * 10)).join('');
+      const code = letra + nums;
+      // Ensure uniqueness
+      if (empresas.some(e => e.director.codigo === code)) return generarCodigo(nombreEmpresa);
+      return code;
+    }
+
+    // =========== RENDER SIDEBAR ===========
+    function renderList() {
+      const list = document.getElementById('empresaList');
+      const empty = document.getElementById('emptyMsg');
+
+      if (empresas.length === 0) {
+        list.innerHTML = '';
+        list.appendChild(empty);
+        empty.style.display = '';
+        return;
+      }
+
+      list.innerHTML = empresas.map((e, i) => `
+        <li class="empresa-list-item" data-idx="${i}">
+          <div class="emp-icon">${e.nombre.charAt(0).toUpperCase()}</div>
+          <div>
+            <div class="emp-name">${e.nombre}</div>
+            <div class="emp-country">${PAISES[e.pais] || e.pais} • ${e.director.codigo}</div>
+          </div>
+        </li>
+      `).join('');
+
+      list.querySelectorAll('.empresa-list-item').forEach(item => {
+        item.addEventListener('click', () => showDetail(parseInt(item.dataset.idx)));
+      });
+    }
+
+    // =========== SHOW DETAIL ===========
+    function showDetail(idx) {
+      const e = empresas[idx];
+      if (!e) return;
+
+      document.getElementById('viewCreate').style.display = 'none';
+      document.getElementById('viewDetail').style.display = 'block';
+
+      document.getElementById('detailTitle').textContent = '🏢 ' + e.nombre;
+      document.getElementById('detailSubtitle').textContent = `${PAISES[e.pais] || e.pais} • Registrada: ${e.fechaRegistro}`;
+      document.getElementById('dEmpNombre').textContent = e.nombre;
+      document.getElementById('dEmpNit').textContent = e.nit;
+      document.getElementById('dEmpTel').textContent = e.telefono;
+      document.getElementById('dEmpCorreo').textContent = e.correo;
+      document.getElementById('dEmpPais').textContent = PAISES[e.pais] || e.pais;
+      document.getElementById('dEmpLada').textContent = e.lada || '—';
+      document.getElementById('dEmpMoneda').textContent = `${e.moneda || '—'} (${e.simboloMoneda || ''})`;
+      document.getElementById('dEmpTz').textContent = e.zonaHoraria || '—';
+      document.getElementById('dEmpSector').textContent = SECTORES[e.sector] || e.sector;
+      document.getElementById('dEmpFecha').textContent = e.fechaRegistro;
+      document.getElementById('dDirNombre').textContent = e.director.nombre;
+      document.getElementById('dDirId').textContent = e.director.identificacion;
+      document.getElementById('dDirTel').textContent = e.director.telefono;
+      document.getElementById('dDirCorreo').textContent = e.director.correo;
+      document.getElementById('dDirCodigo').textContent = e.director.codigo;
+
+      // Highlight sidebar
+      document.querySelectorAll('.empresa-list-item').forEach((li, i) => {
+        li.classList.toggle('active', i === idx);
+      });
+
+      // Delete handler
+      document.getElementById('btnDelete').onclick = () => {
+        if (confirm(`¿Eliminar "${e.nombre}" del sistema?`)) {
+          empresas.splice(idx, 1);
+          localStorage.setItem('cel_empresas', JSON.stringify(empresas));
+          renderList();
+          showCreateForm();
+          showToast('🗑️ Empresa eliminada');
+        }
+      };
+    }
+
+    // =========== SHOW CREATE FORM ===========
+    function showCreateForm() {
+      document.getElementById('viewDetail').style.display = 'none';
+      document.getElementById('viewCreate').style.display = 'block';
+      document.getElementById('successArea').style.display = 'none';
+      // Clear form
+      ['empNombre','empNit','empTelefono','empCorreo','dirNombre','dirIdentificacion','dirTelefono','dirCorreo']
+        .forEach(id => document.getElementById(id).value = '');
+      document.getElementById('empPais').value = '';
+      document.getElementById('formError').style.display = 'none';
+      // Deselect sidebar
+      document.querySelectorAll('.empresa-list-item').forEach(li => li.classList.remove('active'));
+    }
+
+    // =========== NORMALIZAR TELÉFONO ===========
+    function normalizarTelefono(tel, paisCode) {
+      const cfg = PAIS_CONFIG[paisCode];
+      if (!cfg) return tel;
+      let clean = tel.replace(/[^\d+]/g, '');
+      // Si ya tiene la lada, dejarlo
+      if (clean.startsWith(cfg.lada)) return clean;
+      if (clean.startsWith('+')) return clean; // otra lada, respetar
+      // Agregar lada automáticamente
+      return cfg.lada + ' ' + tel.trim();
+    }
+
+    // =========== SAVE EMPRESA ===========
+    document.getElementById('btnSave').addEventListener('click', () => {
+      const pais = document.getElementById('empPais').value;
+      const cfg = PAIS_CONFIG[pais] || {};
+
+      const fields = {
+        nombre: document.getElementById('empNombre').value.trim(),
+        nit: document.getElementById('empNit').value.trim(),
+        telefono: document.getElementById('empTelefono').value.trim(),
+        correo: document.getElementById('empCorreo').value.trim(),
+        pais: pais,
+        sector: document.getElementById('empSector').value,
+        dirNombre: document.getElementById('dirNombre').value.trim(),
+        dirId: document.getElementById('dirIdentificacion').value.trim(),
+        dirTel: document.getElementById('dirTelefono').value.trim(),
+        dirCorreo: document.getElementById('dirCorreo').value.trim(),
+      };
+
+      // Validate required (dirCorreo is optional)
+      const fieldMap = {
+        nombre: 'empNombre', nit: 'empNit', telefono: 'empTelefono',
+        correo: 'empCorreo', pais: 'empPais', dirNombre: 'dirNombre',
+        dirId: 'dirIdentificacion', dirTel: 'dirTelefono'
+      };
+      // Clear previous highlights
+      Object.values(fieldMap).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.borderColor = '';
+      });
+      const missingFields = Object.keys(fieldMap).filter(k => !fields[k]);
+      if (missingFields.length > 0) {
+        missingFields.forEach(k => {
+          const el = document.getElementById(fieldMap[k]);
+          if (el) el.style.borderColor = 'var(--red)';
+        });
+        document.getElementById('formError').textContent = `Faltan ${missingFields.length} campo(s) obligatorios (marcados en rojo)`;
+        document.getElementById('formError').style.display = 'block';
+        return;
+      }
+      document.getElementById('formError').style.display = 'none';
+
+      // Generate code
+      const codigo = generarCodigo(fields.nombre);
+
+      const empresa = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        nombre: fields.nombre,
+        nit: fields.nit,
+        telefono: normalizarTelefono(fields.telefono, pais),
+        correo: fields.correo,
+        pais: pais,
+        sector: fields.sector,
+        // Datos automáticos según país
+        lada: cfg.lada || '',
+        moneda: cfg.moneda || 'USD',
+        simboloMoneda: cfg.simbolo || '$',
+        zonaHoraria: cfg.tz || 'America/Guatemala',
+        fechaRegistro: new Date().toLocaleDateString('es-GT', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+        director: {
+          nombre: fields.dirNombre,
+          identificacion: fields.dirId,
+          telefono: normalizarTelefono(fields.dirTel, pais),
+          correo: fields.dirCorreo,
+          codigo: codigo
+        }
+      };
+
+      empresas.push(empresa);
+      localStorage.setItem('cel_empresas', JSON.stringify(empresas));
+      renderList();
+
+      // Show success with code
+      document.getElementById('generatedCode').textContent = codigo;
+      document.querySelector('.section-card').style.display = 'none';
+      document.getElementById('successArea').style.display = 'block';
+      showToast('✅ Empresa registrada exitosamente');
+    });
+
+    // =========== BTN NEW ===========
+    document.getElementById('btnNew').addEventListener('click', showCreateForm);
+    document.getElementById('btnAnother').addEventListener('click', () => {
+      document.querySelector('.section-card').style.display = '';
+      showCreateForm();
+    });
+
+    // =========== TOAST ===========
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // =========== INIT ===========
+    renderList();
+  </script>
+</body>
+</html>

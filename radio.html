@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>CEL-RADIO — Modo Radio</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="radio-app" id="radioApp">
+    <!-- Header -->
+    <header class="radio-header">
+      <div class="company">
+        <div class="company-logo" id="companyLogo">TB</div>
+        <div>
+          <div class="company-name" id="companyName">Transportes Bautista</div>
+          <div class="company-plan">
+            🟢 Conectado <span style="margin:0 6px;color:var(--text-muted)">|</span>
+            <span id="currentUserDisplay" style="color:var(--accent)">Usuario</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="status-dot" id="statusDot"></div>
+        <button id="btnLogout" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px;" title="Cerrar Sesión">🚪</button>
+      </div>
+    </header>
+
+    <!-- Channel Info -->
+    <div class="channel-bar" id="channelBar">
+      <div class="channel-label" id="channelLabel">Estado de Conexión</div>
+      <div class="channel-name" id="channelName">🚫 Sin Conexión</div>
+      <div class="channel-users" id="channelUsersText">Selecciona un canal o usuario</div>
+    </div>
+
+    <!-- Voice Command Indicator -->
+    <div id="voiceIndicator" style="display:none; text-align:center; padding:10px; background:rgba(0,184,212,0.1); color:var(--accent); font-size:12px; border-bottom:1px solid rgba(0,184,212,0.2);">
+      🎙️ Escuchando comandos de voz ("Aquí...")
+    </div>
+
+    <!-- Speaker Area -->
+    <div class="speaker-area" id="speakerArea">
+      <div class="idle-status" id="idleStatus">
+        <div class="icon" id="idleIcon">🔇</div>
+        <p id="idleText">Aislado — Conéctate para escuchar</p>
+      </div>
+      <div class="speaker-info" id="speakerInfo">
+        <div class="speaker-avatar" id="speakerAvatar">
+          <span id="speakerInitial">JR</span>
+          <div class="sound-waves"></div>
+          <div class="sound-waves"></div>
+          <div class="sound-waves"></div>
+        </div>
+        <div class="speaker-name" id="speakerName">Juan Rodríguez</div>
+        <div class="speaker-status">🔴 Transmitiendo...</div>
+      </div>
+    </div>
+
+    <!-- PTT Button -->
+    <div class="ptt-section">
+      <button class="ptt-btn" id="pttBtn">
+        <span class="mic-icon">🎤</span>
+        <span id="pttLabel">HABLAR</span>
+      </button>
+      <div class="ptt-hint" id="pttHint">Mantener presionado para hablar</div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="radio-actions">
+      <button class="action-btn" id="btnChannels">
+        <span class="icon">📻</span> Canales
+      </button>
+      <button class="action-btn" id="btnPrivate">
+        <span class="icon">👤</span> Privado
+      </button>
+      <button class="action-btn emergency-btn" id="btnEmergency">
+        🚨 EMERGENCIA
+      </button>
+    </div>
+  </div>
+
+  <!-- Channel Selector Modal -->
+  <div class="modal-overlay" id="channelModal">
+    <div class="modal-content">
+      <div class="modal-handle"></div>
+      <div class="modal-title">📻 Cambiar Canal</div>
+      <ul class="channel-list" id="channelList"></ul>
+    </div>
+  </div>
+
+  <!-- Private Call Modal -->
+  <div class="modal-overlay" id="privateModal">
+    <div class="modal-content">
+      <div class="modal-handle"></div>
+      <div class="modal-title">👤 Llamada Privada</div>
+      <div id="userList"></div>
+    </div>
+  </div>
+
+  <!-- Emergency Modal -->
+  <div class="modal-overlay" id="emergencyModal">
+    <div class="modal-content" style="text-align:center;padding:40px 20px">
+      <div style="font-size:64px;margin-bottom:16px">🚨</div>
+      <h2 style="color:var(--red);margin-bottom:8px">ALERTA DE EMERGENCIA</h2>
+      <p style="color:var(--text-secondary);margin-bottom:24px;font-size:14px">Mantén presionado 3 segundos para activar</p>
+      <button class="btn btn-danger" id="confirmEmergency" style="width:100%;padding:20px;font-size:18px">
+        🚨 MANTENER PARA CONFIRMAR
+      </button>
+      <button class="btn btn-ghost" id="cancelEmergency" style="width:100%;margin-top:12px">
+        Cancelar
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast toast-success" id="toast"></div>
+
+  <script src="js/radio.js"></script>
+</body>
+</html>

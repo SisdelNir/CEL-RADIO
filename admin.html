@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CEL-RADIO — Panel Administrativo</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="logo">
+        <div class="icon-box">📻</div>
+        <h2>CEL-RADIO</h2>
+      </div>
+      <ul class="sidebar-nav">
+        <li><a href="#" class="active" data-view="dashboard"><span class="nav-icon">📊</span> Panel de Control</a></li>
+        <li><a href="#" data-view="channels"><span class="nav-icon">📻</span> Canales</a></li>
+        <li><a href="#" data-view="users"><span class="nav-icon">👥</span> Usuarios</a></li>
+        <li><a href="#" data-view="logs"><span class="nav-icon">📋</span> Transmisiones</a></li>
+        <li><a href="#" data-view="emergencies"><span class="nav-icon">🚨</span> Emergencias</a></li>
+        <li><a href="#" data-view="settings"><span class="nav-icon">⚙️</span> Configuración</a></li>
+      </ul>
+      <div style="padding:16px 24px;border-top:1px solid var(--border);margin-top:auto">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="user-avatar" id="sidebarAvatar" style="width:36px;height:36px;font-size:13px">DG</div>
+          <div>
+            <div id="sidebarName" style="font-size:13px;font-weight:600">Director General</div>
+            <div id="sidebarRole" style="font-size:11px;color:var(--text-muted)">Administrador</div>
+          </div>
+        </div>
+        <a href="index.html" style="display:block;margin-top:12px;font-size:12px;color:var(--text-muted);text-decoration:none">← Cerrar sesión</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main" id="mainContent">
+      <!-- Dashboard View -->
+      <div id="view-dashboard">
+        <h1>📊 Panel de Control</h1>
+        <p class="subtitle" id="tenantTitle">Transportes Bautista — Guatemala 🇬🇹</p>
+
+        <div id="emergencyBanner" class="emergency-alert" style="display:none">
+          <span class="alert-icon">🚨</span>
+          <div>
+            <div class="alert-text">Emergencia Activa</div>
+            <div class="alert-detail" id="emergencyDetail">Juan Rodríguez — Km 45 Ruta Occidente</div>
+          </div>
+          <button class="btn btn-danger" style="margin-left:auto;padding:8px 16px;font-size:12px" onclick="document.getElementById('emergencyBanner').style.display='none'">Atender</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value">47</div>
+            <div class="stat-label">Usuarios Activos</div>
+            <div class="stat-change up">↑ 12% vs ayer</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📻</div>
+            <div class="stat-value">6</div>
+            <div class="stat-label">Canales Activos</div>
+            <div class="stat-change up">Todos operativos</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎤</div>
+            <div class="stat-value">1,248</div>
+            <div class="stat-label">Transmisiones Hoy</div>
+            <div class="stat-change up">↑ 8% vs ayer</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-value">4.2s</div>
+            <div class="stat-label">Duración Promedio</div>
+            <div class="stat-change down">↓ 0.3s vs ayer</div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-title">📋 Últimas Transmisiones</span>
+            <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px">Ver todas</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Usuario</th><th>Canal</th><th>Duración</th><th>Hora</th><th>Calidad</th></tr>
+            </thead>
+            <tbody id="recentLogs">
+              <tr><td>Juan Rodríguez</td><td>Ruta Occidente</td><td>5.2s</td><td>14:32</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>Carlos Méndez</td><td>Ruta Oriente</td><td>3.8s</td><td>14:30</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>María García</td><td>Base Central</td><td>8.1s</td><td>14:28</td><td><span class="badge badge-amber">Regular</span></td></tr>
+              <tr><td>Ana Torres</td><td>Ruta Occidente</td><td>2.4s</td><td>14:25</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>Roberto Paz</td><td>Mecánica</td><td>12.3s</td><td>14:20</td><td><span class="badge badge-green">Buena</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Channels View -->
+      <div id="view-channels" style="display:none">
+        <h1>📻 Canales</h1>
+        <p class="subtitle">Gestiona los canales de comunicación de tu empresa</p>
+
+        <!-- Stats resumen -->
+        <div class="stats-grid" style="margin-bottom:24px">
+          <div class="stat-card">
+            <div class="stat-icon">📻</div>
+            <div class="stat-value" id="chTotalCount">0</div>
+            <div class="stat-label">Canales Totales</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="chActiveCount">0</div>
+            <div class="stat-label">Activos</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="chUsersTotal">0</div>
+            <div class="stat-label">Usuarios en Canales</div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-title">Canales Activos</span>
+            <button class="btn btn-primary" style="padding:10px 18px;font-size:13px;width:auto" onclick="openChannelModal()">+ Nuevo Canal</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Canal</th><th>Tipo</th><th>Modo</th><th>Usuarios</th><th>Estado</th><th style="text-align:center">Acciones</th></tr>
+            </thead>
+            <tbody id="channelsTableBody">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MODAL: Crear / Editar Canal -->
+      <div class="ch-modal-overlay" id="channelModal">
+        <div class="ch-modal">
+          <div class="ch-modal-header">
+            <h2 id="channelModalTitle">Nuevo Canal</h2>
+            <button class="ch-modal-close" onclick="closeChannelModal()">&times;</button>
+          </div>
+          <form id="channelForm" onsubmit="saveChannel(event)">
+            <input type="hidden" id="chEditId" value="">
+
+            <div class="ch-form-grid">
+              <div class="form-group">
+                <label>Nombre del Canal *</label>
+                <input type="text" id="chNombre" placeholder="Ej: Ruta Norte" required>
+              </div>
+              <div class="form-group">
+                <label>Icono</label>
+                <div class="icon-picker" id="iconPicker">
+                  <button type="button" class="icon-option active" data-icon="🛣️">🛣️</button>
+                  <button type="button" class="icon-option" data-icon="🏢">🏢</button>
+                  <button type="button" class="icon-option" data-icon="🚨">🚨</button>
+                  <button type="button" class="icon-option" data-icon="🔧">🔧</button>
+                  <button type="button" class="icon-option" data-icon="📢">📢</button>
+                  <button type="button" class="icon-option" data-icon="🚛">🚛</button>
+                  <button type="button" class="icon-option" data-icon="🚌">🚌</button>
+                  <button type="button" class="icon-option" data-icon="⛽">⛽</button>
+                  <button type="button" class="icon-option" data-icon="🏗️">🏗️</button>
+                  <button type="button" class="icon-option" data-icon="📡">📡</button>
+                  <button type="button" class="icon-option" data-icon="🛡️">🛡️</button>
+                  <button type="button" class="icon-option" data-icon="🎯">🎯</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Tipo de Canal *</label>
+                <select id="chTipo" required>
+                  <option value="grupo">Grupo</option>
+                  <option value="emergencia">Emergencia</option>
+                  <option value="difusion">Difusión</option>
+                  <option value="privado">Privado</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Modo de Comunicación *</label>
+                <select id="chModo" required>
+                  <option value="ptt">PTT (Pulsar para hablar)</option>
+                  <option value="abierto">Abierto (Dúplex completo)</option>
+                  <option value="Solo escucha">Solo escucha</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Estado</label>
+                <select id="chEstado">
+                  <option value="activo">Activo</option>
+                  <option value="inactivo">Inactivo</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Descripción (opcional)</label>
+                <input type="text" id="chDescripcion" placeholder="Breve descripción del canal">
+              </div>
+            </div>
+
+            <div class="ch-modal-actions">
+              <button type="button" class="btn btn-ghost" onclick="closeChannelModal()">Cancelar</button>
+              <button type="submit" class="btn btn-primary" style="width:auto" id="channelSubmitBtn">Crear Canal</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- MODAL: Confirmar Eliminación -->
+      <div class="ch-modal-overlay" id="deleteChannelModal">
+        <div class="ch-modal" style="max-width:440px">
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+            <h2 style="margin-bottom:8px">Eliminar Canal</h2>
+            <p style="color:var(--text-secondary);font-size:14px;margin-bottom:24px">
+              ¿Estás seguro de eliminar <strong id="deleteChannelName" style="color:var(--red)"></strong>?<br>
+              Esta acción no se puede deshacer.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:center">
+              <button class="btn btn-ghost" onclick="closeDeleteModal()" style="flex:1">Cancelar</button>
+              <button class="btn btn-danger" onclick="confirmDeleteChannel()" style="flex:1;padding:12px 20px">Sí, Eliminar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users View -->
+      <div id="view-users" style="display:none">
+        <h1>👥 Usuarios</h1>
+        <p class="subtitle">Gestiona los usuarios de tu empresa</p>
+
+        <!-- Stats -->
+        <div class="stats-grid" style="margin-bottom:24px">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="usrTotalCount">0</div>
+            <div class="stat-label">Usuarios Totales</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🟢</div>
+            <div class="stat-value" id="usrActiveCount">0</div>
+            <div class="stat-label">En Línea</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🔴</div>
+            <div class="stat-value" id="usrInactiveCount">0</div>
+            <div class="stat-label">Desconectados</div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-title">Todos los Usuarios</span>
+            <button class="btn btn-primary" style="padding:10px 18px;font-size:13px;width:auto" onclick="openUserModal()">+ Nuevo Usuario</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Usuario</th><th>Identificación</th><th>Teléfono</th><th>Rol</th><th>Código Acceso</th><th>Estado</th><th style="text-align:center">Acciones</th></tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Dynamic rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MODAL: Crear / Editar Usuario -->
+      <div class="ch-modal-overlay" id="userModal">
+        <div class="ch-modal">
+          <div class="ch-modal-header">
+            <h2 id="userModalTitle">Nuevo Usuario</h2>
+            <button class="ch-modal-close" onclick="closeUserModal()">&times;</button>
+          </div>
+          <form id="userForm" onsubmit="saveUser(event)">
+            <input type="hidden" id="usrEditId" value="">
+
+            <div class="ch-form-grid">
+              <div class="form-group" style="grid-column:1/-1">
+                <label>Nombre Completo *</label>
+                <input type="text" id="usrNombre" placeholder="Ej: Juan Rodríguez" required oninput="previewUserCode()">
+              </div>
+              <div class="form-group">
+                <label>Número de Identificación *</label>
+                <input type="text" id="usrIdentificacion" placeholder="Ej: DPI 1234 56789 0101" required>
+              </div>
+              <div class="form-group">
+                <label>Teléfono *</label>
+                <input type="tel" id="usrTelefono" placeholder="Ej: 5555-1234" required>
+              </div>
+              <div class="form-group">
+                <label>Rol *</label>
+                <select id="usrRol" required>
+                  <option value="piloto">🚛 Piloto</option>
+                  <option value="operador">📡 Operador(a)</option>
+                  <option value="mecanico">🔧 Mecánico</option>
+                  <option value="supervisor">👁️ Supervisor</option>
+                  <option value="admin">⚙️ Administrador</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Estado</label>
+                <select id="usrEstado">
+                  <option value="en_linea">🟢 En línea</option>
+                  <option value="desconectado">🔴 Desconectado</option>
+                </select>
+              </div>
+
+              <!-- Code preview -->
+              <div class="form-group" style="grid-column:1/-1">
+                <label>Código de Acceso (auto-generado)</label>
+                <div class="code-preview-box">
+                  <span class="code-preview-value" id="codePreview">------</span>
+                  <span class="code-preview-hint">Se genera al crear el usuario</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ch-modal-actions">
+              <button type="button" class="btn btn-ghost" onclick="closeUserModal()">Cancelar</button>
+              <button type="submit" class="btn btn-primary" style="width:auto" id="userSubmitBtn">Crear Usuario</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- MODAL: Confirmar Eliminación Usuario -->
+      <div class="ch-modal-overlay" id="deleteUserModal">
+        <div class="ch-modal" style="max-width:440px">
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+            <h2 style="margin-bottom:8px">Eliminar Usuario</h2>
+            <p style="color:var(--text-secondary);font-size:14px;margin-bottom:24px">
+              ¿Estás seguro de eliminar a <strong id="deleteUserName" style="color:var(--red)"></strong>?<br>
+              Su código de acceso dejará de funcionar.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:center">
+              <button class="btn btn-ghost" onclick="closeDeleteUserModal()" style="flex:1">Cancelar</button>
+              <button class="btn btn-danger" onclick="confirmDeleteUser()" style="flex:1;padding:12px 20px">Sí, Eliminar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL: Ver Código de Acceso -->
+      <div class="ch-modal-overlay" id="viewCodeModal">
+        <div class="ch-modal" style="max-width:420px">
+          <div style="text-align:center;padding:20px 0">
+            <div style="font-size:48px;margin-bottom:12px">🔑</div>
+            <h2 style="margin-bottom:4px" id="viewCodeUserName"></h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px">Código de acceso al sistema</p>
+            <div class="code-display-big" id="viewCodeValue"></div>
+            <p style="color:var(--text-muted);font-size:12px;margin-top:12px">Comparte este código con el usuario para que ingrese al radio</p>
+            <div style="display:flex;gap:12px;margin-top:20px;justify-content:center">
+              <button class="btn btn-ghost" onclick="closeViewCodeModal()" style="flex:1">Cerrar</button>
+              <button class="btn btn-primary" style="width:auto;flex:1" onclick="copyUserCode()">📋 Copiar Código</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs View -->
+      <div id="view-logs" style="display:none">
+        <h1>📋 Historial de Transmisiones</h1>
+        <p class="subtitle">Historial completo de comunicaciones</p>
+        <div class="section-card">
+          <table class="data-table">
+            <thead>
+              <tr><th>Fecha/Hora</th><th>Usuario</th><th>Canal</th><th>Duración</th><th>Calidad</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>26/04 14:32</td><td>Juan Rodríguez</td><td>Ruta Occidente</td><td>5.2s</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>26/04 14:30</td><td>Carlos Méndez</td><td>Ruta Oriente</td><td>3.8s</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>26/04 14:28</td><td>María García</td><td>Base Central</td><td>8.1s</td><td><span class="badge badge-amber">Regular</span></td></tr>
+              <tr><td>26/04 14:25</td><td>Ana Torres</td><td>Ruta Occidente</td><td>2.4s</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>26/04 14:20</td><td>Roberto Paz</td><td>Mecánica</td><td>12.3s</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>26/04 14:15</td><td>Diego Ramírez</td><td>Ruta Occidente</td><td>6.7s</td><td><span class="badge badge-green">Buena</span></td></tr>
+              <tr><td>26/04 14:10</td><td>Juan Rodríguez</td><td>Emergencias</td><td>15.4s</td><td><span class="badge badge-red">Baja</span></td></tr>
+              <tr><td>26/04 14:05</td><td>Carlos Méndez</td><td>Base Central</td><td>4.1s</td><td><span class="badge badge-green">Buena</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Emergencies View -->
+      <div id="view-emergencies" style="display:none">
+        <h1>🚨 Emergencias</h1>
+        <p class="subtitle">Historial y alertas de emergencia</p>
+        <div class="stats-grid" style="margin-bottom:24px">
+          <div class="stat-card">
+            <div class="stat-icon">🚨</div>
+            <div class="stat-value">3</div>
+            <div class="stat-label">Este Mes</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value">2</div>
+            <div class="stat-label">Resueltas</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-value">1</div>
+            <div class="stat-label">Pendientes</div>
+          </div>
+        </div>
+        <div class="section-card">
+          <table class="data-table">
+            <thead>
+              <tr><th>Fecha</th><th>Piloto</th><th>Tipo</th><th>Ubicación</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>26/04 10:15</td><td>Juan Rodríguez</td><td><span class="badge badge-red">Pánico</span></td><td>Km 45 Ruta Occidente</td><td><span class="badge badge-amber">Pendiente</span></td></tr>
+              <tr><td>25/04 16:30</td><td>Ana Torres</td><td><span class="badge badge-amber">Mecánico</span></td><td>Km 120 Ruta Oriente</td><td><span class="badge badge-green">Resuelta</span></td></tr>
+              <tr><td>23/04 08:45</td><td>Carlos Méndez</td><td><span class="badge badge-red">Accidente</span></td><td>Km 78 Ruta Sur</td><td><span class="badge badge-green">Resuelta</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div id="view-settings" style="display:none">
+        <h1>⚙️ Configuración</h1>
+        <p class="subtitle">Ajustes de la empresa</p>
+        <div class="section-card">
+          <div class="section-title" style="margin-bottom:20px">Datos de la Empresa</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group"><label>Nombre</label><input type="text" value="Transportes Bautista"></div>
+            <div class="form-group"><label>País</label><select><option>🇬🇹 Guatemala</option><option>🇲🇽 México</option><option>🇸🇻 El Salvador</option></select></div>
+            <div class="form-group"><label>Moneda</label><select><option>GTQ — Quetzal</option><option>MXN — Peso</option><option>USD — Dólar</option></select></div>
+            <div class="form-group"><label>Zona Horaria</label><select><option>America/Guatemala (UTC-6)</option><option>America/Mexico_City (UTC-6)</option></select></div>
+            <div class="form-group"><label>Prefijo Telefónico</label><input type="text" value="+502"></div>
+            <div class="form-group"><label>Idioma</label><select><option>Español</option><option>English</option></select></div>
+          </div>
+          <div style="margin-top:20px">
+            <button class="btn btn-primary" style="width:auto" onclick="showToast('✅ Configuración guardada')">Guardar Cambios</button>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-title" style="margin-bottom:20px">Configuración de Voz</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group"><label>Palabra Clave PTT</label><input type="text" value="Cambio"></div>
+            <div class="form-group"><label>Tiempo Máximo PTT (seg)</label><input type="number" value="30"></div>
+            <div class="form-group"><label>Modo Predeterminado</label><select><option value="ptt">PTT (Pulsar para hablar)</option><option value="abierto">Abierto (Dúplex completo)</option></select></div>
+            <div class="form-group"><label>Grabación</label><select><option>Activada</option><option>Desactivada</option></select></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast toast-success" id="toast"></div>
+
+  <script>
+    // Load empresa data from session
+    const empresa = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
+    const PAISES_LABEL = {
+      GT: '🇬🇹 Guatemala', MX: '🇲🇽 México', SV: '🇸🇻 El Salvador',
+      HN: '🇭🇳 Honduras', CR: '🇨🇷 Costa Rica', PA: '🇵🇦 Panamá',
+      NI: '🇳🇮 Nicaragua', US: '🇺🇸 Estados Unidos'
+    };
+
+    // Populate dynamic data
+    if (empresa.nombre) {
+      document.getElementById('tenantTitle').textContent = empresa.nombre + ' — ' + (PAISES_LABEL[empresa.pais] || empresa.pais);
+      // Sidebar user
+      const initials = empresa.director ? empresa.director.nombre.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'DG';
+      document.getElementById('sidebarAvatar').textContent = initials;
+      document.getElementById('sidebarName').textContent = empresa.director ? empresa.director.nombre : 'Director';
+      document.getElementById('sidebarRole').textContent = 'Director General';
+      // Settings
+      if (document.getElementById('settNombre')) document.getElementById('settNombre').value = empresa.nombre;
+    }
+
+    // Navigation
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const view = link.dataset.view;
+        document.querySelectorAll('.sidebar-nav a').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        document.querySelectorAll('[id^="view-"]').forEach(v => v.style.display = 'none');
+        document.getElementById('view-' + view).style.display = 'block';
+      });
+    });
+
+    // Simulate emergency after 10s
+    setTimeout(() => {
+      document.getElementById('emergencyBanner').style.display = 'flex';
+    }, 10000);
+
+    // Toast
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast toast-' + type + ' show';
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // ═══════════════════════════════════════════
+    //  CHANNELS CRUD SYSTEM
+    // ═══════════════════════════════════════════
+
+    const STORAGE_KEY = empresa.id ? `cel_channels_${empresa.id}` : 'cel_channels';
+
+    // Default seed channels
+    const DEFAULT_CHANNELS = [
+      { id: 1, nombre: 'Ruta Occidente', icono: '🛣️', tipo: 'grupo',     modo: 'ptt',          usuarios: 12, estado: 'activo', descripcion: 'Canal principal ruta occidente' },
+      { id: 2, nombre: 'Ruta Oriente',   icono: '🛣️', tipo: 'grupo',     modo: 'ptt',          usuarios: 8,  estado: 'activo', descripcion: 'Canal principal ruta oriente' },
+      { id: 3, nombre: 'Base Central',   icono: '🏢', tipo: 'grupo',     modo: 'ptt',          usuarios: 5,  estado: 'activo', descripcion: 'Comunicación con base central' },
+      { id: 4, nombre: 'Emergencias',    icono: '🚨', tipo: 'emergencia', modo: 'abierto',     usuarios: 24, estado: 'activo', descripcion: 'Canal de emergencias 24/7' },
+      { id: 5, nombre: 'Mecánica',       icono: '🔧', tipo: 'grupo',     modo: 'ptt',          usuarios: 3,  estado: 'activo', descripcion: 'Soporte mecánico' },
+      { id: 6, nombre: 'Anuncios',       icono: '📢', tipo: 'difusion', modo: 'Solo escucha', usuarios: 45, estado: 'activo', descripcion: 'Anuncios generales' },
+    ];
+
+    // Load channels from localStorage or use defaults
+    function loadChannels() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try { return JSON.parse(stored); } catch { /* fallback */ }
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CHANNELS));
+      return [...DEFAULT_CHANNELS];
+    }
+
+    function saveChannelsToStorage(channels) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(channels));
+    }
+
+    function getNextId(channels) {
+      return channels.length > 0 ? Math.max(...channels.map(c => c.id)) + 1 : 1;
+    }
+
+    // Type badge mapping
+    const TIPO_BADGE = {
+      grupo:      { label: 'Grupo',      class: 'badge-blue' },
+      emergencia: { label: 'Emergencia', class: 'badge-red' },
+      difusion:  { label: 'Difusión',  class: 'badge-amber' },
+      privado:    { label: 'Privado',    class: 'badge-purple' },
+    };
+
+    // Render all channels to table
+    function renderChannels() {
+      const channels = loadChannels();
+      const tbody = document.getElementById('channelsTableBody');
+
+      if (channels.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+              <div style="font-size:40px;margin-bottom:8px">📻</div>
+              No hay canales creados. Haz clic en "+ Nuevo Canal" para comenzar.
+            </td>
+          </tr>`;
+      } else {
+        tbody.innerHTML = channels.map(ch => {
+          const badge = TIPO_BADGE[ch.tipo] || TIPO_BADGE.grupo;
+          const estadoBadge = ch.estado === 'activo'
+            ? '<span class="badge badge-green">Activo</span>'
+            : '<span class="badge badge-red">Inactivo</span>';
+          const rowClass = ch.estado === 'inactivo' ? 'ch-inactive' : '';
+
+          return `
+            <tr class="${rowClass}" data-id="${ch.id}">
+              <td><span style="font-size:16px">${ch.icono}</span> ${ch.nombre}</td>
+              <td><span class="badge ${badge.class}">${badge.label}</span></td>
+              <td>${ch.modo}</td>
+              <td>${ch.usuarios}</td>
+              <td>${estadoBadge}</td>
+              <td>
+                <div class="ch-actions">
+                  <button class="ch-action-btn edit" onclick="editChannel(${ch.id})" title="Editar">✏️</button>
+                  <button class="ch-action-btn delete" onclick="deleteChannel(${ch.id})" title="Eliminar">🗑️</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('');
+      }
+
+      // Update stats
+      document.getElementById('chTotalCount').textContent = channels.length;
+      document.getElementById('chActiveCount').textContent = channels.filter(c => c.estado === 'activo').length;
+      document.getElementById('chUsersTotal').textContent = channels.reduce((sum, c) => sum + c.usuarios, 0);
+
+      // Update dashboard stat card too
+      const dashChStat = document.querySelector('.stats-grid .stat-card:nth-child(2) .stat-value');
+      if (dashChStat) {
+        dashChStat.textContent = channels.filter(c => c.estado === 'activo').length;
+      }
+    }
+
+    // ─── Icon Picker ───
+    let selectedIcon = '🛣️';
+
+    document.querySelectorAll('#iconPicker .icon-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#iconPicker .icon-option').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedIcon = btn.dataset.icon;
+      });
+    });
+
+    // ─── Modal: Open for Create ───
+    function openChannelModal() {
+      document.getElementById('channelModalTitle').textContent = 'Nuevo Canal';
+      document.getElementById('channelSubmitBtn').textContent = 'Crear Canal';
+      document.getElementById('chEditId').value = '';
+      document.getElementById('chNombre').value = '';
+      document.getElementById('chTipo').value = 'grupo';
+      document.getElementById('chModo').value = 'PTT';
+      document.getElementById('chEstado').value = 'activo';
+      document.getElementById('chDescripcion').value = '';
+
+      // Reset icon picker
+      selectedIcon = '🛣️';
+      document.querySelectorAll('#iconPicker .icon-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.icon === '🛣️');
+      });
+
+      document.getElementById('channelModal').classList.add('active');
+      setTimeout(() => document.getElementById('chNombre').focus(), 350);
+    }
+
+    // ─── Modal: Open for Edit ───
+    function editChannel(id) {
+      const channels = loadChannels();
+      const ch = channels.find(c => c.id === id);
+      if (!ch) return;
+
+      document.getElementById('channelModalTitle').textContent = 'Editar Canal';
+      document.getElementById('channelSubmitBtn').textContent = 'Guardar Cambios';
+      document.getElementById('chEditId').value = ch.id;
+      document.getElementById('chNombre').value = ch.nombre;
+      document.getElementById('chTipo').value = ch.tipo;
+      document.getElementById('chModo').value = ch.modo;
+      document.getElementById('chEstado').value = ch.estado;
+      document.getElementById('chDescripcion').value = ch.descripcion || '';
+
+      // Set icon picker
+      selectedIcon = ch.icono;
+      document.querySelectorAll('#iconPicker .icon-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.icon === ch.icono);
+      });
+
+      document.getElementById('channelModal').classList.add('active');
+      setTimeout(() => document.getElementById('chNombre').focus(), 350);
+    }
+
+    // ─── Close Modal ───
+    function closeChannelModal() {
+      document.getElementById('channelModal').classList.remove('active');
+    }
+
+    // ─── Save (Create or Update) ───
+    function saveChannel(e) {
+      e.preventDefault();
+
+      const editId = document.getElementById('chEditId').value;
+      const nombre = document.getElementById('chNombre').value.trim();
+      const tipo = document.getElementById('chTipo').value;
+      const modo = document.getElementById('chModo').value;
+      const estado = document.getElementById('chEstado').value;
+      const descripcion = document.getElementById('chDescripcion').value.trim();
+
+      if (!nombre) {
+        showToast('❌ El nombre del canal es obligatorio', 'error');
+        return;
+      }
+
+      const channels = loadChannels();
+
+      if (editId) {
+        // UPDATE existing
+        const idx = channels.findIndex(c => c.id === parseInt(editId));
+        if (idx !== -1) {
+          channels[idx].nombre = nombre;
+          channels[idx].icono = selectedIcon;
+          channels[idx].tipo = tipo;
+          channels[idx].modo = modo;
+          channels[idx].estado = estado;
+          channels[idx].descripcion = descripcion;
+        }
+        saveChannelsToStorage(channels);
+        renderChannels();
+        closeChannelModal();
+        showToast(`✅ Canal "${nombre}" actualizado`);
+      } else {
+        // CREATE new
+        const newChannel = {
+          id: getNextId(channels),
+          nombre,
+          icono: selectedIcon,
+          tipo,
+          modo,
+          usuarios: 0,
+          estado,
+          descripcion,
+        };
+        channels.push(newChannel);
+        saveChannelsToStorage(channels);
+        renderChannels();
+        closeChannelModal();
+        showToast(`✅ Canal "${nombre}" creado exitosamente`);
+
+        // Animate the new row
+        setTimeout(() => {
+          const lastRow = document.querySelector('#channelsTableBody tr:last-child');
+          if (lastRow) lastRow.classList.add('ch-row-new');
+        }, 50);
+      }
+    }
+
+    // ─── Delete ───
+    let deleteTargetId = null;
+
+    function deleteChannel(id) {
+      const channels = loadChannels();
+      const ch = channels.find(c => c.id === id);
+      if (!ch) return;
+
+      deleteTargetId = id;
+      document.getElementById('deleteChannelName').textContent = `"${ch.nombre}"`;
+      document.getElementById('deleteChannelModal').classList.add('active');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteChannelModal').classList.remove('active');
+      deleteTargetId = null;
+    }
+
+    function confirmDeleteChannel() {
+      if (deleteTargetId === null) return;
+
+      let channels = loadChannels();
+      const ch = channels.find(c => c.id === deleteTargetId);
+      const name = ch ? ch.nombre : '';
+
+      channels = channels.filter(c => c.id !== deleteTargetId);
+      saveChannelsToStorage(channels);
+      renderChannels();
+      closeDeleteModal();
+      showToast(`🗑️ Canal "${name}" eliminado`);
+    }
+
+    // ─── Close modals on overlay click ───
+    document.getElementById('channelModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('channelModal')) closeChannelModal();
+    });
+    document.getElementById('deleteChannelModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('deleteChannelModal')) closeDeleteModal();
+    });
+
+    // (Escape key handler is registered after Users CRUD below)
+
+    // ─── Initial render channels ───
+    renderChannels();
+
+    // ═══════════════════════════════════════════
+    //  USERS CRUD SYSTEM
+    // ═══════════════════════════════════════════
+
+    const USERS_STORAGE_KEY = empresa.id ? `cel_users_${empresa.id}` : 'cel_users';
+
+    // ─── Code Generation Algorithm ───
+    // Format: [Empresa 1st letter][User 1st letter][Random letter][3 random digits]
+    function generateUserCode(userName) {
+      const empresaData = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
+      const empresaNombre = empresaData.nombre || 'CEL';
+
+      // 1st char: First letter of company name
+      const c1 = (empresaNombre.charAt(0) || 'C').toUpperCase();
+      // 2nd char: First letter of user name
+      const c2 = (userName.charAt(0) || 'X').toUpperCase();
+      // 3rd char: Random letter (excluding confusing I, O, Q)
+      const letters = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+      const c3 = letters[Math.floor(Math.random() * letters.length)];
+      // 3 random digits
+      const d1 = Math.floor(Math.random() * 10);
+      const d2 = Math.floor(Math.random() * 10);
+      const d3 = Math.floor(Math.random() * 10);
+
+      return `${c1}${c2}${c3}${d1}${d2}${d3}`;
+    }
+
+    // ─── Preview code while typing ───
+    function previewUserCode() {
+      const nombre = document.getElementById('usrNombre').value.trim();
+      const editId = document.getElementById('usrEditId').value;
+      
+      if (editId) return; // Don't change code preview when editing
+
+      if (nombre.length > 0) {
+        const preview = generateUserCode(nombre);
+        document.getElementById('codePreview').textContent = preview;
+      } else {
+        document.getElementById('codePreview').textContent = '------';
+      }
+    }
+
+    // Default seed users
+    const DEFAULT_USERS = [
+      { id: 1, nombre: 'Juan Rodríguez',  identificacion: 'DPI 1234 56789 0101', telefono: '+502 5555-1234', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-01-15' },
+      { id: 2, nombre: 'Carlos Méndez',   identificacion: 'DPI 2345 67890 0102', telefono: '+502 5555-5678', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-01-20' },
+      { id: 3, nombre: 'María García',    identificacion: 'DPI 3456 78901 0103', telefono: '+502 5555-9012', rol: 'operador', codigo: '', estado: 'en_linea',     creado: '2026-02-01' },
+      { id: 4, nombre: 'Pedro López',     identificacion: 'DPI 4567 89012 0104', telefono: '+502 5555-3456', rol: 'piloto',   codigo: '', estado: 'desconectado', creado: '2026-02-10' },
+      { id: 5, nombre: 'Ana Torres',      identificacion: 'DPI 5678 90123 0105', telefono: '+502 5555-7890', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-02-15' },
+      { id: 6, nombre: 'Roberto Paz',     identificacion: 'DPI 6789 01234 0106', telefono: '+502 5555-2345', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-03-01' },
+      { id: 7, nombre: 'Luis Hernández',  identificacion: 'DPI 7890 12345 0107', telefono: '+502 5555-6789', rol: 'mecanico', codigo: '', estado: 'desconectado', creado: '2026-03-05' },
+      { id: 8, nombre: 'Diego Ramírez',   identificacion: 'DPI 8901 23456 0108', telefono: '+502 5555-0123', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-03-10' },
+    ];
+
+    async function loadUsers() {
+      try {
+        const res = await fetch(`/api/usuarios/${empresa.id}`);
+        if (!res.ok) throw new Error('API error');
+        return await res.json();
+      } catch (err) {
+        console.warn('Fallback a localStorage');
+        const stored = localStorage.getItem(USERS_STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+        
+        // Generate codes for default users on first load
+        const users = DEFAULT_USERS.map(u => ({
+          ...u,
+          codigo: generateUserCode(u.nombre)
+        }));
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+        return users;
+      }
+    }
+
+    function saveUsersToStorage(users) {
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    }
+
+    function getNextUserId(users) {
+      return users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
+    }
+
+    // Role badge mapping
+    const ROL_BADGE = {
+      piloto:     { label: 'Piloto',        class: 'badge-blue' },
+      operador:   { label: 'Operador(a)',   class: 'badge-amber' },
+      mecanico:   { label: 'Mecánico',      class: 'badge-amber' },
+      supervisor: { label: 'Supervisor',    class: 'badge-purple' },
+      admin:      { label: 'Admin',         class: 'badge-green' },
+    };
+
+    // Render users table
+    function renderUsers() {
+      const users = loadUsers();
+      const tbody = document.getElementById('usersTableBody');
+
+      if (users.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+              <div style="font-size:40px;margin-bottom:8px">👥</div>
+              No hay usuarios registrados. Haz clic en "+ Nuevo Usuario" para comenzar.
+            </td>
+          </tr>`;
+      } else {
+        tbody.innerHTML = users.map(usr => {
+          const rolBadge = ROL_BADGE[usr.rol] || ROL_BADGE.piloto;
+          const estadoBadge = usr.estado === 'en_linea'
+            ? '<span class="badge badge-green">En línea</span>'
+            : '<span class="badge badge-red">Desconectado</span>';
+
+          return `
+            <tr data-uid="${usr.id}">
+              <td style="font-weight:600">${usr.nombre}</td>
+              <td style="font-size:12px;color:var(--text-secondary)">${usr.identificacion}</td>
+              <td>${usr.telefono}</td>
+              <td><span class="badge ${rolBadge.class}">${rolBadge.label}</span></td>
+              <td>
+                <div class="code-cell" onclick="viewUserCode(${usr.id})" title="Ver código completo">
+                  <code>${usr.codigo}</code>
+                  <span class="code-eye">👁️</span>
+                </div>
+              </td>
+              <td>${estadoBadge}</td>
+              <td>
+                <div class="ch-actions">
+                  <button class="ch-action-btn edit" onclick="editUser(${usr.id})" title="Editar">✏️</button>
+                  <button class="ch-action-btn delete" onclick="deleteUser(${usr.id})" title="Eliminar">🗑️</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('');
+      }
+
+      // Update stats
+      document.getElementById('usrTotalCount').textContent = users.length;
+      document.getElementById('usrActiveCount').textContent = users.filter(u => u.estado === 'en_linea').length;
+      document.getElementById('usrInactiveCount').textContent = users.filter(u => u.estado === 'desconectado').length;
+
+      // Update dashboard stat card
+      const dashUsrStat = document.querySelector('#view-dashboard .stats-grid .stat-card:first-child .stat-value');
+      if (dashUsrStat) dashUsrStat.textContent = users.filter(u => u.estado === 'en_linea').length;
+    }
+
+    // ─── Modal: Open for Create ───
+    function openUserModal() {
+      document.getElementById('userModalTitle').textContent = 'Nuevo Usuario';
+      document.getElementById('userSubmitBtn').textContent = 'Crear Usuario';
+      document.getElementById('usrEditId').value = '';
+      document.getElementById('usrNombre').value = '';
+      document.getElementById('usrIdentificacion').value = '';
+      document.getElementById('usrTelefono').value = '';
+      document.getElementById('usrRol').value = 'piloto';
+      document.getElementById('usrEstado').value = 'en_linea';
+      document.getElementById('codePreview').textContent = '------';
+
+      document.getElementById('userModal').classList.add('active');
+      setTimeout(() => document.getElementById('usrNombre').focus(), 350);
+    }
+
+    // ─── Modal: Open for Edit ───
+    function editUser(id) {
+      const users = loadUsers();
+      const usr = users.find(u => u.id === id);
+      if (!usr) return;
+
+      document.getElementById('userModalTitle').textContent = 'Editar Usuario';
+      document.getElementById('userSubmitBtn').textContent = 'Guardar Cambios';
+      document.getElementById('usrEditId').value = usr.id;
+      document.getElementById('usrNombre').value = usr.nombre;
+      document.getElementById('usrIdentificacion').value = usr.identificacion;
+      document.getElementById('usrTelefono').value = usr.telefono;
+      document.getElementById('usrRol').value = usr.rol;
+      document.getElementById('usrEstado').value = usr.estado;
+      document.getElementById('codePreview').textContent = usr.codigo;
+
+      document.getElementById('userModal').classList.add('active');
+      setTimeout(() => document.getElementById('usrNombre').focus(), 350);
+    }
+
+    function closeUserModal() {
+      document.getElementById('userModal').classList.remove('active');
+    }
+
+    // ─── Save (Create or Update) ───
+    function saveUser(e) {
+      e.preventDefault();
+
+      const editId = document.getElementById('usrEditId').value;
+      const nombre = document.getElementById('usrNombre').value.trim();
+      const identificacion = document.getElementById('usrIdentificacion').value.trim();
+      const telefono = document.getElementById('usrTelefono').value.trim();
+      const rol = document.getElementById('usrRol').value;
+      const estado = document.getElementById('usrEstado').value;
+
+      if (!nombre || !identificacion || !telefono) {
+        showToast('❌ Todos los campos obligatorios deben completarse', 'error');
+        return;
+      }
+
+      const users = loadUsers();
+
+      if (editId) {
+        // UPDATE
+        const idx = users.findIndex(u => u.id === parseInt(editId));
+        if (idx !== -1) {
+          users[idx].nombre = nombre;
+          users[idx].identificacion = identificacion;
+          users[idx].telefono = telefono;
+          users[idx].rol = rol;
+          users[idx].estado = estado;
+          // Code stays the same on edit
+        }
+        saveUsersToStorage(users);
+        renderUsers();
+        closeUserModal();
+        showToast(`✅ Usuario "${nombre}" actualizado`);
+      } else {
+        // CREATE
+        let codigo = document.getElementById('codePreview').textContent;
+        if (!codigo || codigo === '------') {
+          codigo = generateUserCode(nombre);
+        }
+        
+        const newUser = {
+          id: getNextUserId(users),
+          nombre,
+          identificacion,
+          telefono,
+          rol,
+          codigo,
+          estado,
+          creado: new Date().toISOString().split('T')[0],
+        };
+        users.push(newUser);
+        saveUsersToStorage(users);
+        renderUsers();
+        closeUserModal();
+
+        // Show the code to the user
+        showUserCodeModal(newUser.nombre, codigo);
+        showToast(`✅ Usuario "${nombre}" creado — Código: ${codigo}`);
+      }
+    }
+
+    // ─── Delete ───
+    let deleteUserTargetId = null;
+
+    function deleteUser(id) {
+      const users = loadUsers();
+      const usr = users.find(u => u.id === id);
+      if (!usr) return;
+
+      deleteUserTargetId = id;
+      document.getElementById('deleteUserName').textContent = `"${usr.nombre}"`;
+      document.getElementById('deleteUserModal').classList.add('active');
+    }
+
+    function closeDeleteUserModal() {
+      document.getElementById('deleteUserModal').classList.remove('active');
+      deleteUserTargetId = null;
+    }
+
+    function confirmDeleteUser() {
+      if (deleteUserTargetId === null) return;
+
+      let users = loadUsers();
+      const usr = users.find(u => u.id === deleteUserTargetId);
+      const name = usr ? usr.nombre : '';
+
+      users = users.filter(u => u.id !== deleteUserTargetId);
+      saveUsersToStorage(users);
+      renderUsers();
+      closeDeleteUserModal();
+      showToast(`🗑️ Usuario "${name}" eliminado`);
+    }
+
+    // ─── View Code Modal ───
+    let currentViewCode = '';
+
+    function viewUserCode(id) {
+      const users = loadUsers();
+      const usr = users.find(u => u.id === id);
+      if (!usr) return;
+
+      currentViewCode = usr.codigo;
+      document.getElementById('viewCodeUserName').textContent = usr.nombre;
+      document.getElementById('viewCodeValue').textContent = usr.codigo;
+      document.getElementById('viewCodeModal').classList.add('active');
+    }
+
+    function showUserCodeModal(name, code) {
+      currentViewCode = code;
+      document.getElementById('viewCodeUserName').textContent = name;
+      document.getElementById('viewCodeValue').textContent = code;
+      document.getElementById('viewCodeModal').classList.add('active');
+    }
+
+    function closeViewCodeModal() {
+      document.getElementById('viewCodeModal').classList.remove('active');
+    }
+
+    function copyUserCode() {
+      navigator.clipboard.writeText(currentViewCode).then(() => {
+        showToast('📋 Código copiado al portapapeles');
+      }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = currentViewCode;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('📋 Código copiado');
+      });
+    }
+
+    // ─── Close user modals on overlay click ───
+    document.getElementById('userModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('userModal')) closeUserModal();
+    });
+    document.getElementById('deleteUserModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('deleteUserModal')) closeDeleteUserModal();
+    });
+    document.getElementById('viewCodeModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('viewCodeModal')) closeViewCodeModal();
+    });
+
+    // ─── Close all modals on Escape ───
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeChannelModal();
+        closeDeleteModal();
+        closeUserModal();
+        closeDeleteUserModal();
+        closeViewCodeModal();
+      }
+    });
+
+    // ─── Initial render users ───
+    renderUsers();
+  </script>
+</body>
+</html>
