@@ -195,133 +195,9 @@
       border-top: 1px solid rgba(255,255,255,0.08);
       border-radius: 20px 20px 0 0;
     }
-
-    /* Activation Overlay */
-    .activation-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: linear-gradient(160deg, #0a0e1a 0%, #141824 50%, #1a1228 100%);
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-      padding: 40px;
-    }
-    .activation-overlay.hidden { display: none; }
-    .activation-overlay .title { font-size: 22px; font-weight: 900; color: #fff; text-align: center; }
-    .activation-card {
-      background: rgba(30, 36, 50, 0.8);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      padding: 24px;
-      width: 100%;
-      max-width: 340px;
-    }
-    .activation-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-    }
-    .activation-label {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .activation-status {
-      text-align: center;
-      font-size: 13px;
-      color: #94a3b8;
-      margin-top: 18px;
-      min-height: 20px;
-    }
-    .activation-enter-btn {
-      width: 100%;
-      margin-top: 16px;
-      padding: 16px;
-      background: linear-gradient(145deg, #10b981, #059669);
-      color: #fff;
-      border: none;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: 2px;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-    }
-    .activation-enter-btn:disabled {
-      background: rgba(255,255,255,0.08);
-      color: #64748b;
-      cursor: not-allowed;
-    }
-    .activation-enter-btn:not(:disabled):active { transform: scale(0.97); }
-    /* Toggle Switch */
-    .toggle-switch {
-      position: relative;
-      width: 56px;
-      height: 30px;
-      flex-shrink: 0;
-    }
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #333;
-      border-radius: 30px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .toggle-slider::before {
-      content: '';
-      position: absolute;
-      width: 24px; height: 24px;
-      left: 3px; bottom: 3px;
-      background: #fff;
-      border-radius: 50%;
-      transition: transform 0.3s;
-    }
-    .toggle-switch input:checked + .toggle-slider {
-      background: #10b981;
-    }
-    .toggle-switch input:checked + .toggle-slider::before {
-      transform: translateX(26px);
-    }
-
-    /* Channel Users Modal */
-    .channel-users-list { list-style: none; padding: 10px 0; }
-    .channel-users-list li {
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      color: #e2e8f0;
-      font-weight: 600;
-      font-size: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .channel-users-list li .user-dot {
-      width: 10px; height: 10px;
-      background: var(--green);
-      border-radius: 50%;
-      box-shadow: 0 0 6px var(--green);
-    }
   </style>
 </head>
 <body>
-  <!-- Persistent Audio Player (Bypasses iOS autoplay policies after user interaction) -->
-  <audio id="liveAudio" style="display:none;"></audio>
-
-  <!-- Activation Overlay -->
-  <div class="activation-overlay" id="activationOverlay">
-    <div class="title">📡 CEL-RADIO</div>
-    <button class="activate-btn" id="btnEnterRadio" onclick="document.getElementById('activationOverlay').style.display='none'">
-      <span class="big-icon">🎙️</span>
-      <span>ENTRAR<br>AL RADIO</span>
-    </button>
-  </div>
-
   <div class="radio-app" id="radioApp">
 
     <!-- Header -->
@@ -385,10 +261,6 @@
         <span class="icon">👤</span>
         <span>Privado</span>
       </button>
-      <button class="action-btn" id="btnHandsFree">
-        <span class="icon">🎙️</span>
-        <span>Manos Libres</span>
-      </button>
       <button class="action-btn sos-btn" id="btnEmergency">
         <span class="icon">🚨</span>
         <span>S.O.S</span>
@@ -426,15 +298,6 @@
       <button class="btn btn-ghost" id="cancelEmergency" style="width:100%; margin-top:14px; padding:14px; color:#94a3b8;">
         Cancelar
       </button>
-    </div>
-  </div>
-
-  <!-- Channel Users Modal -->
-  <div class="modal-overlay" id="channelUsersModal">
-    <div class="modal-content">
-      <div class="modal-handle"></div>
-      <div class="modal-title">👥 Usuarios en el Canal</div>
-      <ul class="channel-users-list" id="channelUsersList"></ul>
     </div>
   </div>
 

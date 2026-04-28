@@ -75,10 +75,6 @@
   let audioChunks = [];
   let currentRoom = null;
   let micStream = null;
-  
-  let isChannelLocked = false;
-  let lockedByUser = '';
-  let isHandsFreeMode = false;
 
   // Speech Recognition state
   let recognition = null;
@@ -92,49 +88,16 @@
     setupPTT();
     setupModals();
     setupEmergency();
+    requestMicrophone();
     setupSocketReceivers();
-    setupActivation();
-  }
-
-  // ============ ACTIVATION OVERLAY ============
-  function setupActivation() {
-    const enterBtn = document.getElementById('btnEnterRadio');
-    const overlay = document.getElementById('activationOverlay');
-    
-    if (!enterBtn || !overlay) return;
-    
-    // Enter button → go to the radio
-    enterBtn.addEventListener('click', () => {
-      // Ocultar la pantalla inmediatamente
-      overlay.classList.add('hidden');
-      
-      try {
-        unlockAudioContext();
-        
-        // Unlock iOS persistent audio element
-        const liveAudio = document.getElementById('liveAudio');
-        if (liveAudio) {
-          liveAudio.play().then(() => liveAudio.pause()).catch(()=>{});
-        }
-      } catch (e) {
-        console.warn("Audio unlock warning:", e);
-      }
-    });
   }
 
   async function requestMicrophone() {
-    if (micStream) return; // Already have it
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          echoCancellation: true, 
-          noiseSuppression: true,
-          autoGainControl: true 
-        } 
-      });
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
       console.warn("Microphone access denied or error:", err);
-      micStream = null;
+      showToast("⚠️ Activa el permiso del micrófono");
     }
   }
 
@@ -178,70 +141,7 @@
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     });
     
-    // Escuchar Half-Duplex
-    socket.on('channel_locked', (data) => {
-      isChannelLocked = true;
-      lockedByUser = data.user;
-      
-      // Si yo estaba transmitiendo y pierdo el candado, me detengo forzosamente
-      if (isTransmitting) {
-        stopTransmit(true); // true = abortar sin enviar audio
-        showToast('⚠️ Turno denegado (canal ocupado)');
-      }
-      
-      // Mostrar quién habla en el área del speaker
-      const initials = (data.user || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
-      showSpeaker(data.user, initials, false);
-      
-      const btn = document.getElementById('pttBtn');
-      if (btn) {
-        btn.style.background = 'linear-gradient(145deg, #3a1111, #2a0a0a)';
-        btn.style.borderColor = '#ff4444';
-        const label = document.getElementById('pttLabel');
-        const hint = document.getElementById('pttHint');
-        if (label) { label.textContent = 'OCUPADO'; label.style.color = '#ff4444'; }
-        if (hint) { hint.innerHTML = `<span style="color:#ff4444;font-size:13px">⚠️ ${lockedByUser.toUpperCase()} HABLANDO</span>`; }
-      }
-    });
-
-    socket.on('channel_unlocked', () => {
-      isChannelLocked = false;
-      lockedByUser = '';
-      
-      hideSpeaker();
-      
-      const btn = document.getElementById('pttBtn');
-      if (btn) {
-        btn.style.background = '';
-        btn.style.borderColor = '';
-        const label = document.getElementById('pttLabel');
-        const hint = document.getElementById('pttHint');
-        if (label) { label.textContent = 'HABLAR'; label.style.color = ''; }
-        if (hint) { hint.textContent = 'Mantener presionado para hablar'; }
-      }
-    });
-    
-    // Tracking de usuarios en el canal
-    socket.on('room_user_count', (data) => {
-      const countEl = document.getElementById('userCountNum');
-      if (countEl) countEl.textContent = data.count;
-    });
-    
-    // Lista de usuarios en el canal (respuesta)
-    socket.on('channel_users_list', (data) => {
-      const list = document.getElementById('channelUsersList');
-      const modal = document.getElementById('channelUsersModal');
-      if (list && modal) {
-        if (data.users.length === 0) {
-          list.innerHTML = '<li style="color:#94a3b8;justify-content:center;">No hay usuarios conectados</li>';
-        } else {
-          list.innerHTML = data.users.map(name => `
-            <li><div class="user-dot"></div>${name}</li>
-          `).join('');
-        }
-        modal.classList.add('active');
-      }
-    });
+    let globalAudioCtx = null;
     
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
@@ -250,25 +150,34 @@
       showSpeaker(sender.name, sender.initials, false);
 
       try {
-        const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        
-        const liveAudio = document.getElementById('liveAudio');
-        if (liveAudio) {
-          liveAudio.src = url;
-          liveAudio.onended = () => {
-            hideSpeaker();
-            URL.revokeObjectURL(url);
-          };
-          liveAudio.onerror = (e) => {
-            console.warn("liveAudio failed to play", e);
-            hideSpeaker();
-            URL.revokeObjectURL(url);
-          };
-          await liveAudio.play();
+        if (!globalAudioCtx) {
+          globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
+        if (globalAudioCtx.state === 'suspended') {
+          await globalAudioCtx.resume();
+        }
+
+        const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
+        const arrayBuffer = await blob.arrayBuffer();
+        
+        globalAudioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+          const source = globalAudioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(globalAudioCtx.destination);
+          
+          source.onended = () => {
+            hideSpeaker();
+          };
+          
+          source.start(0);
+        }, (err) => {
+          console.error("Error decodificando audio (Safari incompatibility):", err);
+          hideSpeaker();
+          showToast("⚠️ Formato de audio incompatible recibido");
+        });
+
       } catch (err) {
-        console.warn("Audio playback error:", err);
+        console.warn("Audio playback prevent:", err);
         hideSpeaker();
       }
     });
@@ -344,7 +253,7 @@
       usersEl.textContent = 'Comunicación privada enlazada';
       idleIcon.textContent = '📞';
       idleText.textContent = 'Línea privada — listo para hablar';
-      if (isHandsFreeMode) startVoiceRecognition();
+      startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
@@ -355,10 +264,10 @@
     } else {
       labelEl.textContent = 'Canal Activo';
       nameEl.textContent = `📻 ${currentChannel.name}`;
-      usersEl.innerHTML = `<span id="userCount" style="cursor:pointer;text-decoration:underline;color:var(--accent)" onclick="document.dispatchEvent(new CustomEvent('show_channel_users'))">👥 <span id="userCountNum">${currentChannel.users}</span> conectados — Ver</span>`;
+      usersEl.innerHTML = `👥 <span id="userCount">${currentChannel.users}</span> conectados`;
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
-      if (isHandsFreeMode) startVoiceRecognition();
+      startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
@@ -370,13 +279,8 @@
   }
 
   // ============ HANDS-FREE VOICE RECOGNITION ============
-  let isVoicePausedForPTT = false;
-
   function startVoiceRecognition() {
     if (isListening || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
-    
-    // Si estamos transmitiendo o está pausado, no iniciar
-    if (isTransmitting || isVoicePausedForPTT) return;
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -418,11 +322,12 @@
     recognition.onend = function() {
       isListening = false;
       document.getElementById('voiceIndicator').style.display = 'none';
-      
-      // Solo reiniciar si el Modo Manos Libres está activado y NO estamos transmitiendo (PTT)
-      if (isHandsFreeMode && !isVoicePausedForPTT && (currentChannel || currentPrivateUser)) {
+      // Desactivado temporalmente el reinicio infinito para evitar el "bip" molesto del sistema en celulares
+      /*
+      if (currentChannel || currentPrivateUser) {
         try { recognition.start(); } catch(e) {}
       }
+      */
     };
 
     try {
@@ -461,56 +366,22 @@
     document.addEventListener('keyup', (e) => {
       if (e.code === 'Space') { e.preventDefault(); stopTransmit(); }
     });
-
-    // Unlock audio context on first interaction (iOS fix)
-    document.body.addEventListener('touchstart', unlockAudioContext, { once: true });
-    document.body.addEventListener('click', unlockAudioContext, { once: true });
   }
 
-  async function startTransmit() {
+  function startTransmit() {
     if (isTransmitting) return;
-    
-    // Pausar Manos Libres temporalmente para que MediaRecorder pueda usar el micrófono
-    isVoicePausedForPTT = true;
-    stopVoiceRecognition();
-    
-    unlockAudioContext();
-
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
       return;
     }
     
-    // Request mic on first PTT press (user gesture = most compatible)
     if (!micStream) {
-      showToast('🎤 Permitir micrófono para hablar...');
-      await requestMicrophone();
-      if (!micStream) {
-        showToast('❌ Sin micrófono. Abre en Safari/Chrome y permite el micrófono.');
-        return;
-      }
-      showToast('✅ Micrófono listo. ¡Presiona de nuevo para hablar!');
-      return; // Let user press again now that mic is ready
-    }
-
-    if (isChannelLocked) {
-      showToast(`⚠️ ESPERA QUE ${lockedByUser.toUpperCase()} TERMINE`);
-      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+      showToast('⚠️ Permiso de micrófono requerido');
+      requestMicrophone();
       return;
     }
 
     isTransmitting = true;
-
-    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    if (socket && currentRoom) {
-      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' }, (response) => {
-        if (response && !response.success) {
-          // Si el servidor nos deniega el lock (alguien más lo ganó)
-          stopTransmit(true); // abortar
-          showToast('⚠️ Turno denegado (canal ocupado)');
-        }
-      });
-    }
 
     const btn = document.getElementById('pttBtn');
     btn.classList.add('active');
@@ -526,17 +397,10 @@
     // Start MediaRecorder
     try {
       audioChunks = [];
-      
-      const options = { mimeType: 'audio/webm;codecs=opus' };
-      if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(options.mimeType)) {
-        mediaRecorder = new MediaRecorder(micStream, options);
-      } else {
-        // Fallback for iOS Safari
-        mediaRecorder = new MediaRecorder(micStream);
-      }
+      mediaRecorder = new MediaRecorder(micStream);
       
       mediaRecorder.ondataavailable = event => {
-        if (event.data && event.data.size > 0) {
+        if (event.data.size > 0) {
           audioChunks.push(event.data);
         }
       };
@@ -556,26 +420,18 @@
               initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
             }
           });
-        } else {
-           console.warn("No audio chunks recorded or missing socket/room");
         }
       };
       
-      // Pasar un timeslice (ej. 250ms) obliga a Safari a emitir chunks periódicamente
-      // resolviendo un bug donde ondataavailable nunca se dispara si la grabación es corta.
-      mediaRecorder.start(250);
+      mediaRecorder.start();
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
   }
 
-  function stopTransmit(abort = false) {
+  function stopTransmit() {
     if (!isTransmitting) return;
     isTransmitting = false;
-    
-    if (socket && currentRoom && !abort) {
-      socket.emit('unlock_channel', { room: currentRoom });
-    }
 
     clearTimeout(handsFreeTimer);
 
@@ -587,21 +443,10 @@
     hideSpeaker();
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
-      if (abort) {
-        // Al sobreescribir onstop, evitamos que envíe el audio al detener
-        mediaRecorder.onstop = null;
-        console.warn('Transmisión abortada por conflicto de canal');
-      }
       mediaRecorder.stop();
     }
 
     if (navigator.vibrate) navigator.vibrate(30);
-    
-    // Reanudar Manos Libres si estaba activado
-    isVoicePausedForPTT = false;
-    if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
-      setTimeout(startVoiceRecognition, 500); // Pequeño delay para liberar el hardware
-    }
   }
 
   // ============ SPEAKER DISPLAY ============
@@ -630,15 +475,6 @@
   // ============ AUDIO FEEDBACK (REMOVED: Old Beeps) ============
   function playTone(freq, duration) {
     // Las transmisiones de voz reales reemplazan a estos beeps.
-  }
-
-  function unlockAudioContext() {
-    if (!globalAudioCtx) {
-      globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (globalAudioCtx.state === 'suspended') {
-      globalAudioCtx.resume().catch(() => {});
-    }
   }
 
   // ============ MODALS ============
@@ -673,42 +509,6 @@
         window.location.href = 'index.html';
       });
     }
-
-    // Hands Free
-    const btnHandsFree = document.getElementById('btnHandsFree');
-    if (btnHandsFree) {
-      btnHandsFree.addEventListener('click', () => {
-        isHandsFreeMode = !isHandsFreeMode;
-        if (isHandsFreeMode) {
-          btnHandsFree.classList.add('active');
-          btnHandsFree.style.color = 'var(--accent)';
-          showToast('🎙️ Modo Manos Libres ACTIVADO');
-          if (currentChannel || currentPrivateUser) {
-            startVoiceRecognition();
-          }
-        } else {
-          btnHandsFree.classList.remove('active');
-          btnHandsFree.style.color = '';
-          showToast('🛑 Modo Manos Libres DESACTIVADO');
-          stopVoiceRecognition();
-        }
-      });
-    }
-
-    // Channel Users modal
-    const channelUsersModal = document.getElementById('channelUsersModal');
-    if (channelUsersModal) {
-      channelUsersModal.addEventListener('click', (e) => {
-        if (e.target === channelUsersModal) channelUsersModal.classList.remove('active');
-      });
-    }
-    
-    // Custom event: show channel users
-    document.addEventListener('show_channel_users', () => {
-      if (socket && currentRoom) {
-        socket.emit('get_channel_users', { room: currentRoom });
-      }
-    });
   }
 
   function renderChannels() {
