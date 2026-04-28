@@ -138,6 +138,13 @@
     // Enter button → go to the radio
     enterBtn.addEventListener('click', () => {
       unlockAudioContext();
+      
+      // Unlock iOS persistent audio element
+      const liveAudio = document.getElementById('liveAudio');
+      if (liveAudio) {
+        liveAudio.play().then(() => liveAudio.pause()).catch(()=>{});
+      }
+      
       overlay.classList.add('hidden');
     });
   }
@@ -270,18 +277,23 @@
       showSpeaker(sender.name, sender.initials, false);
 
       try {
-        if (!globalAudioCtx) unlockAudioContext();
+        const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
+        const url = URL.createObjectURL(blob);
         
-        // Restaurar decodificación por AudioContext (100% compatible con iOS)
-        const arrayBuffer = await new Blob([audioBlob], { type: mimeType || 'audio/webm' }).arrayBuffer();
-        const audioBuffer = await globalAudioCtx.decodeAudioData(arrayBuffer);
-        
-        const source = globalAudioCtx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(globalAudioCtx.destination);
-        
-        source.onended = () => hideSpeaker();
-        source.start(0);
+        const liveAudio = document.getElementById('liveAudio');
+        if (liveAudio) {
+          liveAudio.src = url;
+          liveAudio.onended = () => {
+            hideSpeaker();
+            URL.revokeObjectURL(url);
+          };
+          liveAudio.onerror = (e) => {
+            console.warn("liveAudio failed to play", e);
+            hideSpeaker();
+            URL.revokeObjectURL(url);
+          };
+          await liveAudio.play();
+        }
       } catch (err) {
         console.warn("Audio playback error:", err);
         hideSpeaker();

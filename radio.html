@@ -310,6 +310,9 @@
   </style>
 </head>
 <body>
+  <!-- Persistent Audio Player (Bypasses iOS autoplay policies after user interaction) -->
+  <audio id="liveAudio" style="display:none;"></audio>
+
   <!-- Activation Overlay -->
   <div class="activation-overlay" id="activationOverlay">
     <div class="title">📡 CEL-RADIO</div>
@@ -328,7 +331,7 @@
         </label>
       </div>
       <div class="activation-status" id="activationStatus">Activa el micrófono para continuar</div>
-      <button class="activation-enter-btn" id="btnEnterRadio" onclick="document.getElementById('activationOverlay').style.display='none'">ENTRAR</button>
+      <button class="activation-enter-btn" id="btnEnterRadio">ENTRAR</button>
     </div>
   </div>
 
