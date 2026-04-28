@@ -361,15 +361,25 @@
 
   function renderChannels() {
     const list = document.getElementById('channelList');
-    list.innerHTML = channels.map(ch => `
-      <li class="channel-item ${(currentChannel && ch.id === currentChannel.id) ? 'active' : ''}" data-id="${ch.id}">
-        <div class="ch-icon">${ch.icon}</div>
-        <div>
-          <div class="ch-name">${ch.name}</div>
-          <div class="ch-users">${ch.users} conectados</div>
+    if (channels.length === 0) {
+      list.innerHTML = `
+        <div style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📡</div>
+          <h3 style="color: #fff; margin-bottom: 8px;">Sin Canales</h3>
+          <p>No hay canales configurados para tu empresa.</p>
         </div>
-      </li>
-    `).join('');
+      `;
+    } else {
+      list.innerHTML = channels.map(ch => `
+        <li class="channel-item ${(currentChannel && ch.id === currentChannel.id) ? 'active' : ''}" data-id="${ch.id}">
+          <div class="ch-icon">${ch.icon}</div>
+          <div>
+            <div class="ch-name">${ch.name}</div>
+            <div class="ch-users">${ch.users} conectados</div>
+          </div>
+        </li>
+      `).join('');
+    }
 
     list.querySelectorAll('.channel-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -387,16 +397,30 @@
 
   function renderUsers() {
     const container = document.getElementById('userList');
-    container.innerHTML = users.map(u => `
-      <div class="user-item" data-id="${u.id}">
-        <div class="user-avatar">${u.initials}</div>
-        <div>
-          <div class="user-name">${u.name}</div>
-          <div class="user-role">${u.role}</div>
+    // Filtrar al propio usuario de la lista de llamadas privadas
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    const otherUsers = users.filter(u => u.id !== loggedInUser.id);
+
+    if (otherUsers.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">👤</div>
+          <h3 style="color: #fff; margin-bottom: 8px;">Sin Contactos</h3>
+          <p>No hay otros usuarios registrados en tu empresa para llamadas privadas.</p>
         </div>
-        <div class="user-status-dot ${u.online ? 'online' : 'offline'}"></div>
-      </div>
-    `).join('');
+      `;
+    } else {
+      container.innerHTML = otherUsers.map(u => `
+        <div class="user-item" data-id="${u.id}">
+          <div class="user-avatar">${u.initials}</div>
+          <div>
+            <div class="user-name">${u.name}</div>
+            <div class="user-role">${u.role}</div>
+          </div>
+          <div class="user-status-dot ${u.online ? 'online' : 'offline'}"></div>
+        </div>
+      `).join('');
+    }
 
     container.querySelectorAll('.user-item').forEach(item => {
       item.addEventListener('click', () => {
