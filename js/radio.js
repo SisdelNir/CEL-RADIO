@@ -337,8 +337,8 @@
     function recordCycle() {
       if (!isHandsFreeMode || !micStream) return;
       try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm;codecs=opus';
-        handsFreeRecorder = new MediaRecorder(micStream, { mimeType });
+        handsFreeRecorder = new MediaRecorder(micStream);
+        const mimeType = handsFreeRecorder.mimeType || 'audio/webm';
         const chunks = [];
         
         handsFreeRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
@@ -419,8 +419,7 @@
     
     // ── Iniciar MediaRecorder — Blob completo al soltar (compatible con todos los navegadores) ──
     try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm;codecs=opus';
-      mediaRecorder = new MediaRecorder(micStream, { mimeType });
+      mediaRecorder = new MediaRecorder(micStream);
       const chunks = [];
       const sender = {
         name: loggedInUser.nombre || 'Piloto',
@@ -433,6 +432,7 @@
       
       mediaRecorder.onstop = () => {
         if (chunks.length > 0 && socket && currentRoom) {
+          const mimeType = mediaRecorder.mimeType || 'audio/webm';
           const audioBlob = new Blob(chunks, { type: mimeType });
           console.log(`[PTT] Enviando audio: ${audioBlob.size} bytes, tipo: ${mimeType}, sala: ${currentRoom}`);
           socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
@@ -442,7 +442,7 @@
       };
       
       mediaRecorder.start(); // Sin timeslice = blob completo al detener
-      console.log(`[PTT] Grabando con: ${mimeType}`);
+      console.log(`[PTT] Grabando con: ${mediaRecorder.mimeType}`);
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
