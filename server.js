@@ -109,24 +109,14 @@ app.delete('/api/canales/:id', (req, res) => {
 
 // ================= WEBSOCKETS (VOZ EN TIEMPO REAL) =================
 
-// Tracking de usuarios por sala { roomName: Map<socketId, userName> }
-const roomUsers = {};
-
-// Tracking de bloqueos de canal (Strict Half-Duplex) { roomName: socketId }
-const activeLocks = new Map();
-
 io.on('connection', (socket) => {
   console.log(`[Socket] Nuevo cliente conectado: ${socket.id}`);
-
-  // Guardar nombre del usuario para tracking
-  socket.userName = null;
 
   // Registro de frecuencia personal del usuario
   socket.on('register_user', (data) => {
     const { empresaId, userId, userName } = data;
     const personalRoom = `empresa_${empresaId}_user_${userId}`;
     socket.join(personalRoom);
-    socket.userName = userName;
     console.log(`[Socket] Frecuencia personal asignada: ${userName} en ${personalRoom}`);
   });
 
@@ -134,39 +124,15 @@ io.on('connection', (socket) => {
   socket.on('join_channel', (data) => {
     const { channelId, empresaId, userName, tipo } = data;
     
-    // Remover del tracking de la sala anterior
+    // Si estaba en otro canal, salir
     for (const room of socket.rooms) {
-      if (room !== socket.id && !room.includes('_user_')) {
-        if (roomUsers[room]) {
-          roomUsers[room].delete(socket.id);
-          if (roomUsers[room].size === 0) delete roomUsers[room];
-          // Notificar actualización de conteo
-          io.to(room).emit('room_user_count', { count: roomUsers[room] ? roomUsers[room].size : 0 });
-        }
-        socket.leave(room);
-      }
+      if (room !== socket.id && !room.includes('_user_')) socket.leave(room); // Evitar salir de la frecuencia personal
     }
 
     // Si es un canal privado, respetar el nombre exacto. Si es grupo, poner prefijo
     const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
-    socket.userName = userName || socket.userName;
-    
-    // Agregar al tracking de la nueva sala
-    if (!roomUsers[roomName]) roomUsers[roomName] = new Map();
-    roomUsers[roomName].set(socket.id, socket.userName || 'Piloto');
-    
-    // Notificar a todos en la sala el nuevo conteo
-    io.to(roomName).emit('room_user_count', { count: roomUsers[roomName].size });
-    
-    console.log(`[Socket] ${userName} se unió a ${roomName} (${roomUsers[roomName].size} usuarios)`);
-  });
-
-  // Obtener lista de usuarios en el canal actual
-  socket.on('get_channel_users', (data) => {
-    const { room } = data;
-    const usersInRoom = roomUsers[room] ? Array.from(roomUsers[room].values()) : [];
-    socket.emit('channel_users_list', { users: usersInRoom });
+    console.log(`[Socket] ${userName} se unió a ${roomName}`);
   });
 
   // Orden para forzar (jalar) a un usuario a un canal privado
@@ -189,64 +155,15 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('user_status_changed', { userId, isOnline });
     console.log(`[Socket] Usuario ${userId} cambió su estado a: ${isOnline ? 'Visible' : 'Oculto'}`);
   });
-  // Half-Duplex: Bloqueo de Canal (Candado Fuerte)
-  socket.on('lock_channel', (data, callback) => {
-    const { room, user } = data;
-    
-    // Si la sala ya está bloqueada por otro usuario, rechazar
-    if (activeLocks.has(room) && activeLocks.get(room) !== socket.id) {
-      console.log(`[Socket] Bloqueo denegado a ${user} en ${room} (en uso)`);
-      if (typeof callback === 'function') callback({ success: false });
-      return;
-    }
-    
-    // Adquirir el candado
-    activeLocks.set(room, socket.id);
-    socket.to(room).emit('channel_locked', { user });
-    console.log(`[Socket] Canal bloqueado en ${room} por ${user}`);
-    if (typeof callback === 'function') callback({ success: true });
-  });
-
-  // Half-Duplex: Desbloqueo de Canal
-  socket.on('unlock_channel', (data) => {
-    const { room } = data;
-    // Solo liberar si el que lo pide es el dueño actual
-    if (activeLocks.get(room) === socket.id) {
-      activeLocks.delete(room);
-      socket.to(room).emit('channel_unlocked');
-      console.log(`[Socket] Canal liberado en ${room}`);
-    }
-  });
 
   // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
-    const { room, audioBlob, sender, mimeType } = data;
+    const { room, audioBlob, sender } = data;
     // Retransmitir el audio a todos los demás en el canal
-    socket.to(room).emit('receive_voice', { audioBlob, sender, mimeType });
+    socket.to(room).emit('receive_voice', { audioBlob, sender });
   });
 
   socket.on('disconnect', () => {
-    // Limpiar tracking de salas
-    for (const room in roomUsers) {
-      if (roomUsers[room].has(socket.id)) {
-        roomUsers[room].delete(socket.id);
-        if (roomUsers[room].size === 0) {
-          delete roomUsers[room];
-        } else {
-          io.to(room).emit('room_user_count', { count: roomUsers[room].size });
-        }
-      }
-    }
-    
-    // Limpiar bloqueos activos (si este usuario se desconecta hablando)
-    for (const [room, ownerId] of activeLocks.entries()) {
-      if (ownerId === socket.id) {
-        activeLocks.delete(room);
-        socket.to(room).emit('channel_unlocked');
-        console.log(`[Socket] Canal ${room} liberado por desconexión`);
-      }
-    }
-    
     console.log(`[Socket] Cliente desconectado: ${socket.id}`);
   });
 });
