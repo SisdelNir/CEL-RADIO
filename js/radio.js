@@ -92,7 +92,6 @@
     setupPTT();
     setupModals();
     setupEmergency();
-    requestMicrophone();
     setupSocketReceivers();
   }
 
@@ -334,7 +333,7 @@
       // Buscar frase "atento atento" (ignorando comas u otros signos)
       if (transcript.includes('atento atento') || transcript.includes('atento, atento')) {
         // ACTIVAR MICRÓFONO
-        startTransmit();
+        startTransmit(true);
         showToast('🎙️ Transmisión manos libres activada');
         
         // Cerrar después de 15 segundos
@@ -377,26 +376,28 @@
     }
   }
 
+  let isPttPressed = false;
+
   // ============ PTT LOGIC (Real Audio) ============
   function setupPTT() {
     const btn = document.getElementById('pttBtn');
 
     // Mouse events
-    btn.addEventListener('mousedown', startTransmit);
-    btn.addEventListener('mouseup', stopTransmit);
-    btn.addEventListener('mouseleave', stopTransmit);
+    btn.addEventListener('mousedown', () => { isPttPressed = true; startTransmit(); });
+    btn.addEventListener('mouseup', () => { isPttPressed = false; stopTransmit(); });
+    btn.addEventListener('mouseleave', () => { isPttPressed = false; stopTransmit(); });
 
     // Touch events
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startTransmit(); });
-    btn.addEventListener('touchend', (e) => { e.preventDefault(); stopTransmit(); });
-    btn.addEventListener('touchcancel', stopTransmit);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); isPttPressed = true; startTransmit(); });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); isPttPressed = false; stopTransmit(); });
+    btn.addEventListener('touchcancel', () => { isPttPressed = false; stopTransmit(); });
 
     // Keyboard (spacebar)
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); startTransmit(); }
+      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); isPttPressed = true; startTransmit(); }
     });
     document.addEventListener('keyup', (e) => {
-      if (e.code === 'Space') { e.preventDefault(); stopTransmit(); }
+      if (e.code === 'Space') { e.preventDefault(); isPttPressed = false; stopTransmit(); }
     });
 
     // Unlock audio context on first interaction (iOS fix)
@@ -404,13 +405,17 @@
     document.body.addEventListener('click', unlockAudioContext, { once: true });
   }
 
-  async function startTransmit() {
+  let isTransmittingVirtual = false;
+
+  async function startTransmit(virtual = false) {
+    if (virtual) isTransmittingVirtual = true;
     if (isTransmitting) return;
     
     unlockAudioContext(); // Ensure it's unlocked when PTT is pressed
 
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
+      isTransmittingVirtual = false;
       return;
     }
     
@@ -418,6 +423,11 @@
       showToast('⏳ Solicitando permiso de micrófono...');
       await requestMicrophone();
       if (!micStream) return;
+      
+      // Si el usuario soltó el botón mientras pedía permiso (y no es manos libres), abortar.
+      if (!isPttPressed && !isTransmittingVirtual) {
+        return;
+      }
     }
 
     if (isChannelLocked) {
@@ -491,7 +501,12 @@
   }
 
   function stopTransmit() {
-    if (!isTransmitting) return;
+    isTransmittingVirtual = false;
+    if (!isTransmitting) {
+      // Si se atascó el MediaRecorder sin estar formalmente "transmitting"
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+      return;
+    }
     isTransmitting = false;
     
     if (socket && currentRoom) {
