@@ -417,14 +417,14 @@
         document.getElementById('voiceIndicator').style.display = 'block';
         document.getElementById('voiceIndicator').textContent = '🟢 Micrófono Abierto — Transmitiendo en vivo';
         
-        // Iniciar transmisión directa (misma lógica que PTT)
+        // Iniciar transmisión directa
         startTransmit();
       } else {
-        // CERRAR MICRÓFONO
+        // CERRAR MICRÓFONO — desactivar ANTES de stopTransmit para que no reinicie
         showToast('🔇 Micrófono Abierto DESACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'none';
         
-        // Detener transmisión
+        // stopTransmit no reiniciará porque isHandsFreeMode ya es false
         stopTransmit(false);
       }
     });
@@ -692,14 +692,6 @@
 
     hideSpeaker();
 
-    // Resetear botón de Micrófono Abierto si estaba activo
-    if (isHandsFreeMode) {
-      isHandsFreeMode = false;
-      const hfBtn = document.getElementById('btnHandsFree');
-      if (hfBtn) hfBtn.classList.remove('active');
-      document.getElementById('voiceIndicator').style.display = 'none';
-    }
-
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       if (abort) mediaRecorder.onstop = null;
       mediaRecorder.stop();
@@ -711,6 +703,13 @@
     }
 
     if (navigator.vibrate) navigator.vibrate(30);
+    
+    // Si Micrófono Abierto sigue activo, reiniciar transmisión automáticamente
+    if (isHandsFreeMode && !abort) {
+      setTimeout(() => {
+        if (isHandsFreeMode) startTransmit();
+      }, 100);
+    }
   }
 
 
