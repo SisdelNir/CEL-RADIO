@@ -581,10 +581,6 @@
     channelModal.addEventListener('click', (e) => {
       if (e.target === channelModal) channelModal.classList.remove('active');
     });
-    // Evitar que clicks dentro del contenido cierren el modal
-    channelModal.querySelector('.modal-content').addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
 
     // Private modal
     const privateModal = document.getElementById('privateModal');
@@ -621,34 +617,35 @@
           <p>No hay canales configurados para tu empresa.</p>
         </div>
       `;
-    } else {
-      list.innerHTML = channels.map(ch => `
-        <li class="channel-item ${(currentChannel && ch.id === currentChannel.id) ? 'active' : ''}" data-id="${ch.id}">
-          <div class="ch-icon">${ch.icon}</div>
-          <div>
-            <div class="ch-name">${ch.name}</div>
-            <div class="ch-users">${ch.users} conectados</div>
-          </div>
-        </li>
-      `).join('');
+      return;
     }
+    
+    list.innerHTML = channels.map(ch => `
+      <li class="channel-item ${(currentChannel && ch.id === currentChannel.id) ? 'active' : ''}" 
+          data-id="${ch.id}" 
+          onclick="this.dataset.clicked='1'" 
+          style="cursor:pointer; -webkit-tap-highlight-color: rgba(0,212,255,0.3);">
+        <div class="ch-icon">${ch.icon}</div>
+        <div>
+          <div class="ch-name">${ch.name}</div>
+          <div class="ch-users">${ch.users} conectados</div>
+        </div>
+      </li>
+    `).join('');
 
-    list.querySelectorAll('.channel-item').forEach(item => {
-      const selectChannel = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const ch = channels.find(x => String(x.id) === item.dataset.id);
-        if (ch) {
-          currentChannel = ch;
-          currentPrivateUser = null;
-          updateChannelDisplay();
-          document.getElementById('channelModal').classList.remove('active');
-          showToast(`📻 Conectado a Canal: ${ch.name}`);
-        }
-      };
-      item.addEventListener('click', selectChannel);
-      item.addEventListener('touchend', selectChannel);
-    });
+    // Delegación de eventos en el padre (funciona en iOS Safari)
+    list.onclick = function(e) {
+      const item = e.target.closest('.channel-item');
+      if (!item) return;
+      const ch = channels.find(x => String(x.id) === item.dataset.id);
+      if (ch) {
+        currentChannel = ch;
+        currentPrivateUser = null;
+        updateChannelDisplay();
+        document.getElementById('channelModal').classList.remove('active');
+        showToast(`📻 Conectado a Canal: ${ch.name}`);
+      }
+    };
   }
 
   function renderUsers() {
