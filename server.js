@@ -112,6 +112,9 @@ app.delete('/api/canales/:id', (req, res) => {
 // Tracking de usuarios por sala { roomName: Map<socketId, userName> }
 const roomUsers = {};
 
+// Tracking de bloqueos de canal (Strict Half-Duplex) { roomName: socketId }
+const activeLocks = new Map();
+
 io.on('connection', (socket) => {
   console.log(`[Socket] Nuevo cliente conectado: ${socket.id}`);
 
@@ -186,18 +189,33 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('user_status_changed', { userId, isOnline });
     console.log(`[Socket] Usuario ${userId} cambió su estado a: ${isOnline ? 'Visible' : 'Oculto'}`);
   });
-  // Half-Duplex: Bloqueo de Canal
-  socket.on('lock_channel', (data) => {
+  // Half-Duplex: Bloqueo de Canal (Candado Fuerte)
+  socket.on('lock_channel', (data, callback) => {
     const { room, user } = data;
+    
+    // Si la sala ya está bloqueada por otro usuario, rechazar
+    if (activeLocks.has(room) && activeLocks.get(room) !== socket.id) {
+      console.log(`[Socket] Bloqueo denegado a ${user} en ${room} (en uso)`);
+      if (typeof callback === 'function') callback({ success: false });
+      return;
+    }
+    
+    // Adquirir el candado
+    activeLocks.set(room, socket.id);
     socket.to(room).emit('channel_locked', { user });
     console.log(`[Socket] Canal bloqueado en ${room} por ${user}`);
+    if (typeof callback === 'function') callback({ success: true });
   });
 
   // Half-Duplex: Desbloqueo de Canal
   socket.on('unlock_channel', (data) => {
     const { room } = data;
-    socket.to(room).emit('channel_unlocked');
-    console.log(`[Socket] Canal liberado en ${room}`);
+    // Solo liberar si el que lo pide es el dueño actual
+    if (activeLocks.get(room) === socket.id) {
+      activeLocks.delete(room);
+      socket.to(room).emit('channel_unlocked');
+      console.log(`[Socket] Canal liberado en ${room}`);
+    }
   });
 
   // Cuando un usuario transmite voz
@@ -219,6 +237,16 @@ io.on('connection', (socket) => {
         }
       }
     }
+    
+    // Limpiar bloqueos activos (si este usuario se desconecta hablando)
+    for (const [room, ownerId] of activeLocks.entries()) {
+      if (ownerId === socket.id) {
+        activeLocks.delete(room);
+        socket.to(room).emit('channel_unlocked');
+        console.log(`[Socket] Canal ${room} liberado por desconexión`);
+      }
+    }
+    
     console.log(`[Socket] Cliente desconectado: ${socket.id}`);
   });
 });

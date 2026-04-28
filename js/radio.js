@@ -203,6 +203,12 @@
       isChannelLocked = true;
       lockedByUser = data.user;
       
+      // Si yo estaba transmitiendo y pierdo el candado, me detengo forzosamente
+      if (isTransmitting) {
+        stopTransmit(true); // true = abortar sin enviar audio
+        showToast('⚠️ Turno denegado (canal ocupado)');
+      }
+      
       // Mostrar quién habla en el área del speaker
       const initials = (data.user || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
       showSpeaker(data.user, initials, false);
@@ -264,21 +270,18 @@
       showSpeaker(sender.name, sender.initials, false);
 
       try {
-        const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
+        if (!globalAudioCtx) unlockAudioContext();
         
-        audio.onended = () => {
-          hideSpeaker();
-          URL.revokeObjectURL(url);
-        };
-        audio.onerror = () => {
-          console.warn("Audio element failed, trying AudioContext fallback");
-          hideSpeaker();
-          URL.revokeObjectURL(url);
-        };
+        // Restaurar decodificación por AudioContext (100% compatible con iOS)
+        const arrayBuffer = await new Blob([audioBlob], { type: mimeType || 'audio/webm' }).arrayBuffer();
+        const audioBuffer = await globalAudioCtx.decodeAudioData(arrayBuffer);
         
-        await audio.play();
+        const source = globalAudioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(globalAudioCtx.destination);
+        
+        source.onended = () => hideSpeaker();
+        source.start(0);
       } catch (err) {
         console.warn("Audio playback error:", err);
         hideSpeaker();
@@ -506,7 +509,13 @@
 
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
     if (socket && currentRoom) {
-      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' });
+      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' }, (response) => {
+        if (response && !response.success) {
+          // Si el servidor nos deniega el lock (alguien más lo ganó)
+          stopTransmit(true); // abortar
+          showToast('⚠️ Turno denegado (canal ocupado)');
+        }
+      });
     }
 
     const btn = document.getElementById('pttBtn');
@@ -566,11 +575,11 @@
     }
   }
 
-  function stopTransmit() {
+  function stopTransmit(abort = false) {
     if (!isTransmitting) return;
     isTransmitting = false;
     
-    if (socket && currentRoom) {
+    if (socket && currentRoom && !abort) {
       socket.emit('unlock_channel', { room: currentRoom });
     }
 
@@ -584,6 +593,11 @@
     hideSpeaker();
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
+      if (abort) {
+        // Al sobreescribir onstop, evitamos que envíe el audio al detener
+        mediaRecorder.onstop = null;
+        console.warn('Transmisión abortada por conflicto de canal');
+      }
       mediaRecorder.stop();
     }
 
