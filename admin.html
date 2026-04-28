@@ -454,6 +454,40 @@
   <div class="toast toast-success" id="toast"></div>
 
   <script>
+    // ══════════════════════════════════════════════════════════════════
+    // 🛡️ GUARDIA DE ENTORNO — Previene uso local (file://)
+    // Si detecta que está corriendo como archivo local, bloquea la UI
+    // y redirige al usuario a la URL correcta de producción.
+    // ══════════════════════════════════════════════════════════════════
+    if (window.location.protocol === 'file:') {
+      document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
+          background:#0a0e1a;font-family:sans-serif;text-align:center;padding:24px;">
+          <div style="max-width:480px;background:#141824;border:2px solid #ff4444;
+            border-radius:20px;padding:40px 32px;box-shadow:0 0 60px rgba(255,68,68,0.2);">
+            <div style="font-size:56px;margin-bottom:16px;">⚠️</div>
+            <h1 style="color:#ff4444;font-size:22px;margin-bottom:12px;">
+              Modo Local Detectado
+            </h1>
+            <p style="color:#aab;font-size:15px;line-height:1.6;margin-bottom:28px;">
+              Este panel <strong style="color:#fff">no puede crear usuarios ni canales</strong>
+              cuando se abre como archivo local (<code>file:///...</code>).<br><br>
+              Para que todo funcione correctamente, usa siempre la dirección oficial del sistema.
+            </p>
+            <a href="https://cel-radiocel-radio.onrender.com"
+              style="display:inline-block;background:#00b8d4;color:#000;font-weight:800;
+              font-size:16px;padding:14px 32px;border-radius:12px;text-decoration:none;
+              box-shadow:0 0 24px rgba(0,184,212,0.5);">
+              🌐 Ir al Sistema Oficial
+            </a>
+            <p style="color:#556;font-size:12px;margin-top:20px;">
+              https://cel-radiocel-radio.onrender.com
+            </p>
+          </div>
+        </div>`;
+      throw new Error('[CEL-RADIO] Acceso local bloqueado — usa la URL de producción.');
+    }
+
     // Load empresa data from session
     const empresa = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
     const PAISES_LABEL = {
