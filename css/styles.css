@@ -907,19 +907,20 @@ body::before {
 }
 
 .ch-modal-close {
-  width: 48px;
-  height: 48px;
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--bg-glass);
   color: var(--text-secondary);
-  font-size: 28px;
+  font-size: 50px;
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition);
+  margin-top: -38px;
 }
 
 .ch-modal-close:hover {
