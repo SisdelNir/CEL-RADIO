@@ -176,8 +176,6 @@
       }
     });
     
-    let globalAudioCtx = null;
-    
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
@@ -400,19 +398,26 @@
     document.addEventListener('keyup', (e) => {
       if (e.code === 'Space') { e.preventDefault(); stopTransmit(); }
     });
+
+    // Unlock audio context on first interaction (iOS fix)
+    document.body.addEventListener('touchstart', unlockAudioContext, { once: true });
+    document.body.addEventListener('click', unlockAudioContext, { once: true });
   }
 
-  function startTransmit() {
+  async function startTransmit() {
     if (isTransmitting) return;
+    
+    unlockAudioContext(); // Ensure it's unlocked when PTT is pressed
+
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
       return;
     }
     
     if (!micStream) {
-      showToast('⚠️ Permiso de micrófono requerido');
-      requestMicrophone();
-      return;
+      showToast('⏳ Solicitando permiso de micrófono...');
+      await requestMicrophone();
+      if (!micStream) return;
     }
 
     if (isChannelLocked) {
@@ -524,6 +529,15 @@
   // ============ AUDIO FEEDBACK (REMOVED: Old Beeps) ============
   function playTone(freq, duration) {
     // Las transmisiones de voz reales reemplazan a estos beeps.
+  }
+
+  function unlockAudioContext() {
+    if (!globalAudioCtx) {
+      globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (globalAudioCtx.state === 'suspended') {
+      globalAudioCtx.resume().catch(() => {});
+    }
   }
 
   // ============ MODALS ============
