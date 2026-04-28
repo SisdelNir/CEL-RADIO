@@ -514,6 +514,14 @@
 
       empresas.push(empresa);
       localStorage.setItem('cel_empresas', JSON.stringify(empresas));
+      
+      // Guardar en la base de datos de la nube
+      fetch('/api/empresas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(empresa)
+      }).catch(err => console.error("Error guardando en BD:", err));
+
       renderList();
 
       // Show success with code

@@ -55,9 +55,16 @@
       
       try {
         const resEmp = await fetch('/api/empresas').catch(() => null);
-        if (!resEmp || !resEmp.ok) throw new Error('No server');
+        let empresas = [];
+        if (resEmp && resEmp.ok) {
+          empresas = await resEmp.json();
+        }
         
-        const empresas = await resEmp.json();
+        // Merge with localStorage just in case (for companies created before API connection)
+        const localEmpresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
+        for (const le of localEmpresas) {
+          if (!empresas.find(e => e.id === le.id)) empresas.push(le);
+        }
 
         // Check director codes
         const empresa = empresas.find(e => e.director && e.director.codigo.toUpperCase() === code);
@@ -70,9 +77,16 @@
 
         // Check user codes
         for (const e of empresas) {
-          const resUsr = await fetch(`/api/usuarios/${e.id}`);
-          if (!resUsr.ok) continue;
-          const users = await resUsr.json();
+          let users = [];
+          const resUsr = await fetch(`/api/usuarios/${e.id}`).catch(() => null);
+          if (resUsr && resUsr.ok) {
+            users = await resUsr.json();
+          }
+          const localUsers = JSON.parse(localStorage.getItem(`cel_users_${e.id}`) || '[]');
+          for (const lu of localUsers) {
+             if (!users.find(u => u.id === lu.id)) users.push(lu);
+          }
+
           const user = users.find(u => u.codigo && u.codigo.toUpperCase() === code);
           if (user) {
             sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'user', user_id: user.id }));
@@ -85,28 +99,8 @@
 
         codeError.textContent = 'Código incorrecto. Intenta de nuevo.';
       } catch (err) {
-        // Fallback to localStorage if server is down (during development/transition)
-        console.warn("Server not available, falling back to local DB", err);
-        const empresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
-        const empresa = empresas.find(e => e.director && e.director.codigo.toUpperCase() === code);
-        if (empresa) {
-          sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'director', empresa_id: empresa.id }));
-          sessionStorage.setItem('cel_empresa', JSON.stringify(empresa));
-          window.location.href = 'admin.html';
-          return;
-        }
-        for (const e of empresas) {
-          const tenantUsers = JSON.parse(localStorage.getItem(`cel_users_${e.id}`) || '[]');
-          const user = tenantUsers.find(u => u.codigo && u.codigo.toUpperCase() === code);
-          if (user) {
-            sessionStorage.setItem('cel_auth', JSON.stringify({ role: 'user', user_id: user.id }));
-            sessionStorage.setItem('cel_user', JSON.stringify(user));
-            sessionStorage.setItem('cel_empresa', JSON.stringify(e));
-            window.location.href = 'radio.html';
-            return;
-          }
-        }
-        codeError.textContent = 'Servidor no disponible / Código incorrecto.';
+        console.warn("Error en login:", err);
+        codeError.textContent = 'Error del servidor / Código incorrecto.';
       }
       
       codeError.style.display = 'block';

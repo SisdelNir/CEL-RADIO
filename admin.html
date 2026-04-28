@@ -990,6 +990,17 @@
         };
         users.push(newUser);
         saveUsersToStorage(users);
+        
+        // POST to backend
+        fetch('/api/usuarios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            empresa_id: empresa.id,
+            ...newUser
+          })
+        }).catch(err => console.error(err));
+
         renderUsers();
         closeUserModal();
 
