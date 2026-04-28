@@ -104,6 +104,30 @@
   function setupSocketReceivers() {
     if (!socket) return;
     
+    // Registrar usuario en su frecuencia personal
+    const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    if (tenant.id && loggedInUser.id) {
+      socket.emit('register_user', { empresaId: tenant.id, userId: loggedInUser.id, userName: loggedInUser.nombre });
+    }
+    
+    // Escuchar "jalón" automático a llamada privada
+    socket.on('incoming_private_call', (data) => {
+      const { roomName, caller } = data;
+      // Actualizar variables de estado
+      currentChannel = null;
+      currentPrivateUser = { id: caller.id, name: caller.nombre, initials: caller.initials };
+      
+      // Cerrar modales si están abiertos
+      document.getElementById('channelModal').classList.remove('active');
+      document.getElementById('privateModal').classList.remove('active');
+      
+      // Forzar cambio visual y conexión
+      updateChannelDisplay();
+      showToast(`📞 Llamada entrante de ${caller.nombre}`);
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    });
+    
     let globalAudioCtx = null;
     
     socket.on('receive_voice', async (data) => {
@@ -519,9 +543,28 @@
           currentPrivateUser = u;
           currentChannel = null;
           updateChannelDisplay();
+          
+          // Emitir orden de Jalón Automático
+          if (socket) {
+            const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+            const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+            const roomName = `private_${tenant.id}_${Math.min(loggedInUser.id, u.id)}_${Math.max(loggedInUser.id, u.id)}`;
+            
+            socket.emit('force_private_call', {
+              targetUserId: u.id,
+              empresaId: tenant.id,
+              roomName: roomName,
+              caller: {
+                id: loggedInUser.id,
+                nombre: loggedInUser.nombre || 'Piloto',
+                initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+              }
+            });
+          }
+          
           document.getElementById('privateModal').classList.remove('active');
-          showToast(`📞 Línea privada conectada con ${u.name}`);
-        } else {
+          showToast(`Llamada Privada iniciada con: ${u.name}`);
+        } else if (u && !u.online) {
           showToast('Usuario no disponible');
         }
       });

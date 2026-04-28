@@ -112,19 +112,40 @@ app.delete('/api/canales/:id', (req, res) => {
 io.on('connection', (socket) => {
   console.log(`[Socket] Nuevo cliente conectado: ${socket.id}`);
 
-  // Cuando un usuario se une a un canal
+  // Registro de frecuencia personal del usuario
+  socket.on('register_user', (data) => {
+    const { empresaId, userId, userName } = data;
+    const personalRoom = `empresa_${empresaId}_user_${userId}`;
+    socket.join(personalRoom);
+    console.log(`[Socket] Frecuencia personal asignada: ${userName} en ${personalRoom}`);
+  });
+
+  // Cuando un usuario se une a un canal (Grupo o Privado)
   socket.on('join_channel', (data) => {
     const { channelId, empresaId, userName, tipo } = data;
     
     // Si estaba en otro canal, salir
     for (const room of socket.rooms) {
-      if (room !== socket.id) socket.leave(room);
+      if (room !== socket.id && !room.includes('_user_')) socket.leave(room); // Evitar salir de la frecuencia personal
     }
 
     // Si es un canal privado, respetar el nombre exacto. Si es grupo, poner prefijo
     const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
     console.log(`[Socket] ${userName} se unió a ${roomName}`);
+  });
+
+  // Orden para forzar (jalar) a un usuario a un canal privado
+  socket.on('force_private_call', (data) => {
+    const { targetUserId, empresaId, roomName, caller } = data;
+    const targetPersonalRoom = `empresa_${empresaId}_user_${targetUserId}`;
+    
+    // Reenviar la alerta directamente a la frecuencia personal del objetivo
+    socket.to(targetPersonalRoom).emit('incoming_private_call', {
+      roomName: roomName,
+      caller: caller
+    });
+    console.log(`[Socket] Jalando a usuario ${targetUserId} hacia el cuarto ${roomName}`);
   });
 
   // Cuando un usuario transmite voz
