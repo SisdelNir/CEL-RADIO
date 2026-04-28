@@ -109,9 +109,6 @@ app.delete('/api/canales/:id', (req, res) => {
 
 // ================= WEBSOCKETS (VOZ EN TIEMPO REAL) =================
 
-// ── Half-Duplex: Candados activos por sala ──
-const activeLocks = new Map(); // key: roomName, value: { socketId, userName }
-
 io.on('connection', (socket) => {
   console.log(`[Socket] Nuevo cliente conectado: ${socket.id}`);
 
@@ -132,59 +129,18 @@ io.on('connection', (socket) => {
     for (const room of socket.rooms) {
       if (room !== socket.id && !room.includes('_user_')) {
         socket.leave(room);
-        // Emitir conteo actualizado al canal anterior
         const prevCount = io.sockets.adapter.rooms.get(room)?.size || 0;
         io.to(room).emit('channel_user_count', { room, count: prevCount });
       }
     }
 
-    // Si es un canal privado, respetar el nombre exacto. Si es grupo, poner prefijo
     const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
     socket.currentVoiceRoom = roomName;
     console.log(`[Socket] ${userName} se unió a ${roomName}`);
     
-    // Emitir conteo actualizado de usuarios al canal
     const count = io.sockets.adapter.rooms.get(roomName)?.size || 0;
     io.to(roomName).emit('channel_user_count', { room: roomName, count });
-  });
-
-  // ── Half-Duplex: Solicitud de candado (PTT presionado) ──
-  socket.on('lock_channel', (data, callback) => {
-    const { room, user } = data;
-    const existing = activeLocks.get(room);
-    
-    if (existing && existing.socketId !== socket.id) {
-      // Canal ocupado por otro usuario → DENEGAR
-      if (typeof callback === 'function') {
-        callback({ success: false, lockedBy: existing.userName });
-      }
-      return;
-    }
-    
-    // Canal libre → OTORGAR candado
-    activeLocks.set(room, { socketId: socket.id, userName: user });
-    
-    // Notificar a los demás que el canal está bloqueado
-    socket.to(room).emit('channel_locked', { user, socketId: socket.id });
-    
-    if (typeof callback === 'function') {
-      callback({ success: true });
-    }
-    console.log(`[Lock] ${user} bloqueó el canal ${room}`);
-  });
-
-  // ── Half-Duplex: Liberación de candado (PTT soltado) ──
-  socket.on('unlock_channel', (data) => {
-    const { room } = data;
-    const existing = activeLocks.get(room);
-    
-    // Solo liberar si el candado pertenece a este socket
-    if (existing && existing.socketId === socket.id) {
-      activeLocks.delete(room);
-      io.to(room).emit('channel_unlocked', { room });
-      console.log(`[Unlock] Canal ${room} liberado`);
-    }
   });
 
   // Orden para forzar (jalar) a un usuario a un canal privado
@@ -216,21 +172,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // Limpiar cualquier candado que este socket tenía
-    for (const [room, lock] of activeLocks.entries()) {
-      if (lock.socketId === socket.id) {
-        activeLocks.delete(room);
-        io.to(room).emit('channel_unlocked', { room });
-        console.log(`[Disconnect] Candado limpiado para ${room} (usuario ${lock.userName})`);
-      }
-    }
-    
     // Actualizar conteo en la sala de voz
     if (socket.currentVoiceRoom) {
       const count = io.sockets.adapter.rooms.get(socket.currentVoiceRoom)?.size || 0;
       io.to(socket.currentVoiceRoom).emit('channel_user_count', { room: socket.currentVoiceRoom, count });
     }
-    
     console.log(`[Socket] Cliente desconectado: ${socket.id}`);
   });
 });

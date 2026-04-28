@@ -75,10 +75,6 @@
   let currentRoom = null;
   let micStream = null;
 
-  // Half-Duplex lock state
-  let isChannelLocked = false;
-  let lockedByUser = '';
-
   // Hands-free state
   let isHandsFreeMode = false;
   let handsFreeRecorder = null;
@@ -153,22 +149,6 @@
       updateChannelDisplay();
       showToast(`📞 Llamada entrante de ${caller.nombre}`);
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    });
-    
-    // ── Half-Duplex: Canal bloqueado por otro usuario ──
-    socket.on('channel_locked', (data) => {
-      isChannelLocked = true;
-      lockedByUser = data.user || 'Alguien';
-      // Si yo estoy transmitiendo y me llega un lock de otro, abortar
-      if (isTransmitting) stopTransmit(true);
-      // Mostrar quién está hablando en el área central
-      showSpeaker(data.user || 'Alguien', '📡', false);
-    });
-    
-    socket.on('channel_unlocked', () => {
-      isChannelLocked = false;
-      lockedByUser = '';
-      hideSpeaker();
     });
     
     // Conteo de usuarios en el canal
@@ -276,10 +256,6 @@
     const usersEl = document.getElementById('channelUsersText');
     const idleIcon = document.getElementById('idleIcon');
     const idleText = document.getElementById('idleText');
-    
-    // Reset lock state on channel change
-    isChannelLocked = false;
-    lockedByUser = '';
     
     if (!currentChannel && !currentPrivateUser) {
       labelEl.textContent = 'Estado de Conexión';
@@ -429,13 +405,6 @@
       return;
     }
 
-    // ── Verificar bloqueo local antes de pedir al servidor ──
-    if (isChannelLocked) {
-      showLockWarning(lockedByUser);
-      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
-      return;
-    }
-
     isTransmitting = true;
 
     const btn = document.getElementById('pttBtn');
@@ -446,18 +415,7 @@
     showSpeaker('TÚ', '🎙️', true);
     if (navigator.vibrate) navigator.vibrate(50);
 
-    // ── Pedir candado al servidor ──
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    if (socket && currentRoom) {
-      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' }, (response) => {
-        if (response && !response.success) {
-          // Servidor denegó → abortar
-          stopTransmit(true);
-          showLockWarning(response.lockedBy || 'Alguien');
-          return;
-        }
-      });
-    }
     
     // ── Iniciar MediaRecorder — Blob completo al soltar (compatible con todos los navegadores) ──
     try {
@@ -490,11 +448,6 @@
     if (!isTransmitting && !abort) return;
     isTransmitting = false;
 
-    // Liberar candado en el servidor
-    if (socket && currentRoom && !abort) {
-      socket.emit('unlock_channel', { room: currentRoom });
-    }
-
     const btn = document.getElementById('pttBtn');
     btn.classList.remove('active');
     document.getElementById('pttLabel').textContent = 'HABLAR';
@@ -510,18 +463,6 @@
     if (navigator.vibrate) navigator.vibrate(30);
   }
 
-  // ── Mostrar advertencia visual de canal ocupado ──
-  function showLockWarning(userName) {
-    // Remove existing warning if any
-    const existing = document.querySelector('.lock-warning');
-    if (existing) existing.remove();
-    
-    const div = document.createElement('div');
-    div.className = 'lock-warning';
-    div.innerHTML = `⚠️ Espere un momento<br><strong>${userName.toUpperCase()}</strong> está hablando`;
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 3000);
-  }
 
   // ============ SPEAKER DISPLAY ============
   function showSpeaker(name, initials, isSelf) {
