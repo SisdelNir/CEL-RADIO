@@ -301,11 +301,12 @@
 
   // ============ SIMULATE OTHER USERS TALKING ============
   function startSimulation() {
+    if (users.length === 0) return; // Sin usuarios, no simular
     simulationInterval = setInterval(() => {
-      if (isTransmitting) return;
+      if (isTransmitting || users.length === 0) return;
       if (Math.random() > 0.7) {
         const u = users[Math.floor(Math.random() * users.length)];
-        if (!u.online) return;
+        if (!u || !u.online) return;
         showSpeaker(u.name, u.initials, false);
         playTone(600, 60);
         const duration = 2000 + Math.random() * 4000;
@@ -316,7 +317,7 @@
           }
         }, duration);
       }
-    }, 6000);
+    }, 8000); // Cada 8 segundos (más ligero)
   }
 
   // ============ AUDIO FEEDBACK ============
