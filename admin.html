@@ -519,7 +519,7 @@
     }
 
     function saveChannelsToStorage(channels) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(channels));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)); } catch(e) { console.warn(e); }
     }
 
     function getNextId(channels) {
@@ -816,7 +816,7 @@
     }
 
     function saveUsersToStorage(users) {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      try { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users)); } catch(e) { console.warn(e); }
     }
 
     function getNextUserId(users) {
