@@ -507,5 +507,9 @@
   }
 
   // ============ BOOT ============
-  document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init(); // Si el DOM ya cargó mientras se hacían los fetch(), ejecutar init() directamente
+  }
 })();
