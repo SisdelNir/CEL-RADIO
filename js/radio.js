@@ -111,6 +111,19 @@
       socket.emit('register_user', { empresaId: tenant.id, userId: loggedInUser.id, userName: loggedInUser.nombre });
     }
     
+    // Escuchar cambio de estado (Visible/Oculto) de otros usuarios
+    socket.on('user_status_changed', (data) => {
+      const { userId, isOnline } = data;
+      const u = users.find(x => x.id === userId);
+      if (u) {
+        u.online = isOnline;
+        // Si el modal de privados está abierto, refrescarlo
+        if (document.getElementById('privateModal').classList.contains('active')) {
+          renderUsers();
+        }
+      }
+    });
+    
     // Escuchar "jalón" automático a llamada privada
     socket.on('incoming_private_call', (data) => {
       const { roomName, caller } = data;
@@ -186,8 +199,33 @@
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
     const userName = loggedInUser.nombre || 'Modo Prueba';
     const userDisplay = document.getElementById('currentUserDisplay');
+    const userToggle = document.getElementById('userStatusToggle');
+    const userDot = document.getElementById('userStatusDot');
+    
+    // Estado local inicial
+    let isLocalOnline = true;
+    
     if (userDisplay) {
-      userDisplay.textContent = `👤 ${userName}`;
+      userDisplay.textContent = `${userName}`;
+    }
+    
+    if (userToggle) {
+      userToggle.addEventListener('click', () => {
+        isLocalOnline = !isLocalOnline;
+        if (isLocalOnline) {
+          userDot.classList.remove('offline');
+          userDisplay.textContent = userName;
+          showToast("Has cambiado a: Visible");
+        } else {
+          userDot.classList.add('offline');
+          userDisplay.textContent = `${userName} (Oculto)`;
+          showToast("Has cambiado a: Oculto");
+        }
+        
+        if (socket && tenant.id && loggedInUser.id) {
+          socket.emit('toggle_status', { empresaId: tenant.id, userId: loggedInUser.id, isOnline: isLocalOnline });
+        }
+      });
     }
   }
 
@@ -511,16 +549,16 @@
 
   function renderUsers() {
     const container = document.getElementById('userList');
-    // Filtrar al propio usuario de la lista de llamadas privadas
+    // Filtrar al propio usuario y solo mostrar a los que están "Visible" (online = true)
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    const otherUsers = users.filter(u => u.id !== loggedInUser.id);
+    const otherUsers = users.filter(u => u.id !== loggedInUser.id && u.online);
 
     if (otherUsers.length === 0) {
       container.innerHTML = `
         <div style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
           <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">👤</div>
-          <h3 style="color: #fff; margin-bottom: 8px;">Sin Contactos</h3>
-          <p>No hay otros usuarios registrados en tu empresa para llamadas privadas.</p>
+          <h3 style="color: #fff; margin-bottom: 8px;">Nadie Disponible</h3>
+          <p>No hay otros usuarios visibles o en turno en este momento.</p>
         </div>
       `;
     } else {
@@ -531,7 +569,7 @@
             <div class="user-name">${u.name}</div>
             <div class="user-role">${u.role}</div>
           </div>
-          <div class="user-status-dot ${u.online ? 'online' : 'offline'}"></div>
+          <div class="user-status-dot online"></div>
         </div>
       `).join('');
     }

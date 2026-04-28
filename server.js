@@ -148,6 +148,14 @@ io.on('connection', (socket) => {
     console.log(`[Socket] Jalando a usuario ${targetUserId} hacia el cuarto ${roomName}`);
   });
 
+  // Cambiar estado de visibilidad del usuario
+  socket.on('toggle_status', (data) => {
+    const { empresaId, userId, isOnline } = data;
+    // Avisar a todos en la empresa
+    socket.broadcast.emit('user_status_changed', { userId, isOnline });
+    console.log(`[Socket] Usuario ${userId} cambió su estado a: ${isOnline ? 'Visible' : 'Oculto'}`);
+  });
+
   // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
     const { room, audioBlob, sender } = data;

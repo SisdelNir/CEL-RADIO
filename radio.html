@@ -39,11 +39,21 @@
       padding: 5px 14px;
       border-radius: 20px;
       border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .radio-header .user-pill:active {
+      transform: scale(0.95);
     }
     .radio-header .user-pill .dot {
       width: 8px; height: 8px;
       background: var(--green);
       border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+    }
+    .radio-header .user-pill .dot.offline {
+      background: #ff4444;
+      box-shadow: 0 0 8px #ff4444;
     }
     .radio-header .user-pill span {
       color: #e2e8f0;
@@ -196,8 +206,8 @@
       <div class="status-dot" id="statusDot" style="display:none;"></div>
       <button id="btnLogout" class="btn-salir" title="Cerrar Sesión">SALIR</button>
       <div id="companyName" class="company-name">CARGANDO...</div>
-      <div class="user-pill">
-        <div class="dot"></div>
+      <div class="user-pill" id="userStatusToggle" title="Cambiar estado (Visible/Oculto)">
+        <div class="dot" id="userStatusDot"></div>
         <span id="currentUserDisplay">Usuario</span>
       </div>
     </header>
