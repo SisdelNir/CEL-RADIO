@@ -499,12 +499,20 @@
     // Populate dynamic data
     if (empresa.nombre) {
       document.getElementById('sidebarCompanyName').textContent = empresa.nombre;
-      document.getElementById('tenantTitle').textContent = empresa.nombre + ' — ' + (PAISES_LABEL[empresa.pais] || empresa.pais);
-      // Sidebar user
-      const initials = empresa.director ? empresa.director.nombre.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'DG';
+
+      // Pais: puede venir como empresa.pais (código) o como texto
+      const paisLabel = empresa.pais
+        ? (PAISES_LABEL[empresa.pais] || empresa.pais)
+        : '';
+      document.getElementById('tenantTitle').textContent = empresa.nombre + (paisLabel ? ' — ' + paisLabel : '');
+
+      // Director: master.html guarda dirNombre; otras rutas guardan director.nombre
+      const dirNombre = empresa.dirNombre || (empresa.director && empresa.director.nombre) || 'Director General';
+      const initials = dirNombre.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
       document.getElementById('sidebarAvatar').textContent = initials;
-      document.getElementById('sidebarName').textContent = empresa.director ? empresa.director.nombre : 'Director';
+      document.getElementById('sidebarName').textContent = dirNombre;
       document.getElementById('sidebarRole').textContent = 'Director General';
+
       // Settings
       if (document.getElementById('settNombre')) document.getElementById('settNombre').value = empresa.nombre;
     }
