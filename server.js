@@ -114,14 +114,15 @@ io.on('connection', (socket) => {
 
   // Cuando un usuario se une a un canal
   socket.on('join_channel', (data) => {
-    const { channelId, empresaId, userName } = data;
+    const { channelId, empresaId, userName, tipo } = data;
     
     // Si estaba en otro canal, salir
     for (const room of socket.rooms) {
       if (room !== socket.id) socket.leave(room);
     }
 
-    const roomName = `empresa_${empresaId}_canal_${channelId}`;
+    // Si es un canal privado, respetar el nombre exacto. Si es grupo, poner prefijo
+    const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
     console.log(`[Socket] ${userName} se unió a ${roomName}`);
   });

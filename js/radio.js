@@ -105,11 +105,11 @@
     if (!socket) return;
     
     socket.on('receive_voice', async (data) => {
-      const { audioBlob, sender } = data;
+      const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
 
       // Reproducir audio
-      const blob = new Blob([audioBlob], { type: 'audio/webm' });
+      const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       
@@ -180,7 +180,7 @@
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
         const roomName = `private_${tenant.id}_${Math.min(loggedInUser.id, currentPrivateUser.id)}_${Math.max(loggedInUser.id, currentPrivateUser.id)}`;
         currentRoom = roomName;
-        socket.emit('join_channel', { channelId: roomName, empresaId: tenant.id, userName: loggedInUser.nombre });
+        socket.emit('join_channel', { channelId: roomName, empresaId: tenant.id, userName: loggedInUser.nombre, tipo: 'privado' });
       }
     } else {
       labelEl.textContent = 'Canal Activo';
@@ -194,7 +194,7 @@
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
         const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
         currentRoom = `empresa_${tenant.id}_canal_${currentChannel.id}`;
-        socket.emit('join_channel', { channelId: currentChannel.id, empresaId: tenant.id, userName: loggedInUser.nombre });
+        socket.emit('join_channel', { channelId: currentChannel.id, empresaId: tenant.id, userName: loggedInUser.nombre, tipo: 'grupo' });
       }
     }
   }
@@ -243,10 +243,12 @@
     recognition.onend = function() {
       isListening = false;
       document.getElementById('voiceIndicator').style.display = 'none';
-      // Restart si seguimos conectados
+      // Desactivado temporalmente el reinicio infinito para evitar el "bip" molesto del sistema en celulares
+      /*
       if (currentChannel || currentPrivateUser) {
         try { recognition.start(); } catch(e) {}
       }
+      */
     };
 
     try {
@@ -326,12 +328,14 @@
       
       mediaRecorder.onstop = () => {
         if (audioChunks.length > 0 && socket && currentRoom) {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const mimeType = mediaRecorder.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunks, { type: mimeType });
           const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
           
           socket.emit('transmit_voice', {
             room: currentRoom,
             audioBlob: audioBlob,
+            mimeType: mimeType,
             sender: {
               name: loggedInUser.nombre || 'Piloto',
               initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
