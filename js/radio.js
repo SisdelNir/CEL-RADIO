@@ -337,7 +337,7 @@
     function recordCycle() {
       if (!isHandsFreeMode || !micStream) return;
       try {
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm;codecs=opus';
         handsFreeRecorder = new MediaRecorder(micStream, { mimeType });
         const chunks = [];
         
@@ -419,7 +419,7 @@
     
     // ── Iniciar MediaRecorder — Blob completo al soltar (compatible con todos los navegadores) ──
     try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
+      const mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm;codecs=opus';
       mediaRecorder = new MediaRecorder(micStream, { mimeType });
       const chunks = [];
       const sender = {
