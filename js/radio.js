@@ -19,24 +19,12 @@
        channels = await res.json();
     }
   } catch (e) {
-    console.warn(e);
+    console.warn('Error loading channels:', e);
   }
   
+  // Limpiar caché local obsoleta
   const chKey = tenant.id ? `cel_channels_${tenant.id}` : 'cel_channels';
-  const storedChannels = JSON.parse(localStorage.getItem(chKey) || '[]');
-  const localC = storedChannels.filter(c => c.estado === 'activo').map(c => ({
-    id: c.id, name: c.nombre, icon: c.icono, type: c.tipo, users: c.usuarios || 0, mode: c.modo
-  }));
-  
-  for (const lc of localC) {
-    if (!channels.find(c => c.id === lc.id)) channels.push(lc);
-  }
-
-  if (channels.length === 0) {
-    channels = [
-      { id: 'c1', name: 'Canal Principal', icon: '🛣️', type: 'grupo', users: 1, mode: 'ptt' }
-    ];
-  }
+  localStorage.removeItem(chKey);
 
   let users = [];
   try {
@@ -52,19 +40,12 @@
       }));
     }
   } catch (e) {
-    console.warn(e);
+    console.warn('Error loading users:', e);
   }
 
+  // Limpiar caché local obsoleta
   const usrKey = tenant.id ? `cel_users_${tenant.id}` : 'cel_users';
-  const storedU = JSON.parse(localStorage.getItem(usrKey) || '[]');
-  const localUsers = storedU.map(u => ({
-    id: u.id, name: u.nombre, initials: (u.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(),
-    role: u.rol || 'Piloto', online: u.estado === 'en_linea' || u.estado === 'activo'
-  }));
-
-  for (const lu of localUsers) {
-    if (!users.find(u => u.id === lu.id)) users.push(lu);
-  }
+  localStorage.removeItem(usrKey);
 
   // ============ STATE ============
   let currentChannel = null;
@@ -90,17 +71,15 @@
   }
 
   function loadTenantInfo() {
-    // Try cel_empresa first, fallback to cel_tenant
-    let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
-    if (!tenant.id) {
-      const empresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
-      if (empresas.length > 0) tenant = empresas[0];
-    }
+    // Try cel_empresa first
+    let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
     
     if (tenant.nombre || tenant.name) {
       const name = tenant.nombre || tenant.name;
       document.getElementById('companyName').textContent = name;
       document.getElementById('companyLogo').textContent = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    } else {
+      document.getElementById('companyName').textContent = "SIN EMPRESA";
     }
 
     // Display current user
@@ -250,37 +229,20 @@
     isTransmitting = true;
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.add('transmitting');
+    btn.classList.add('active'); // Added .active for CSS animations
     
-    // ======== RETRASO DE 15 SEGUNDOS PARA PRUEBAS (TEMPORAL) ========
-    let timeLeft = 15;
-    document.getElementById('pttLabel').textContent = `ESPERANDO (${timeLeft}s)`;
-    document.getElementById('pttHint').textContent = 'Preparando conexión...';
-    
-    countdownTimer = setInterval(() => {
-      timeLeft--;
-      if (timeLeft > 0 && isTransmitting) {
-        document.getElementById('pttLabel').textContent = `ESPERANDO (${timeLeft}s)`;
-      }
-    }, 1000);
+    document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
+    document.getElementById('pttHint').textContent = 'Suelta para terminar';
 
-    delayTimer = setTimeout(() => {
-      clearInterval(countdownTimer);
-      if (!isTransmitting) return; // Se canceló antes de tiempo
+    // Show self as speaker
+    showSpeaker('TÚ', '🎙️', true);
 
-      document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
-      document.getElementById('pttHint').textContent = 'Suelta para terminar';
+    // Vibrate feedback
+    if (navigator.vibrate) navigator.vibrate(50);
 
-      // Show self as speaker
-      showSpeaker('TÚ', '🎙️', true);
-
-      // Vibrate feedback
-      if (navigator.vibrate) navigator.vibrate(50);
-
-      // Audio feedback tone
-      playTone(880, 100);
-      setTimeout(() => playTone(1100, 100), 120);
-    }, 15000); // 15 segundos
+    // Audio feedback tone
+    playTone(880, 100);
+    setTimeout(() => playTone(1100, 100), 120);
   }
 
   function stopTransmit() {
@@ -288,11 +250,9 @@
     isTransmitting = false;
 
     clearTimeout(handsFreeTimer); // Cancel hands-free timeout if manual stop
-    clearTimeout(delayTimer);     // Cancel test delay
-    clearInterval(countdownTimer);
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.remove('transmitting');
+    btn.classList.remove('active'); // Removed .active
     document.getElementById('pttLabel').textContent = 'HABLAR';
     document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
 
