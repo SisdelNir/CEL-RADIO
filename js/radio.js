@@ -146,6 +146,10 @@
       if (u) {
         u.online = isOnline;
         if (document.getElementById('privateModal').classList.contains('active')) renderUsers();
+        // Actualizar punto verde en llamada privada activa
+        if (currentPrivateUser && currentPrivateUser.id === userId) {
+          updateChannelDisplay();
+        }
       }
     });
     
@@ -347,15 +351,24 @@
       const myName = loggedInUser.nombre || 'TÚ';
 
       labelEl.textContent = '📞 LLAMADA PRIVADA';
-      // Nombres apilados: uno arriba, otro abajo
+      // Verificar si el otro usuario está en línea
+      const otherUser = users.find(u => u.id === currentPrivateUser.id);
+      const isOtherOnline = otherUser ? otherUser.online : false;
+      const dotColor = isOtherOnline ? '#10b981' : '#64748b';
+      const dotGlow = isOtherOnline ? 'box-shadow:0 0 8px #10b981;' : '';
+      const statusLabel = isOtherOnline ? 'En línea' : 'Desconectado';
+      
       nameEl.innerHTML = `<div class="private-names">
         <div class="caller-name">${myName}</div>
         <div class="divider-icon">📞 ↕️</div>
-        <div class="callee-name">${currentPrivateUser.name}</div>
+        <div class="callee-name" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+          <span style="width:12px;height:12px;border-radius:50%;background:${dotColor};${dotGlow}display:inline-block;flex-shrink:0;"></span>
+          ${currentPrivateUser.name}
+        </div>
       </div>`;
-      usersEl.textContent = 'Comunicación privada enlazada';
+      usersEl.innerHTML = '<span style="color:' + dotColor + ';">● ' + statusLabel + '</span> — Comunicación privada enlazada';
       idleIcon.textContent = '📞';
-      idleText.textContent = 'Línea privada — listo para hablar';
+      idleText.textContent = isOtherOnline ? 'Línea privada — listo para hablar' : '⚠️ El otro usuario no está conectado';
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
