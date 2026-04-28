@@ -210,19 +210,22 @@
     // ====== ARBITRAJE DE VOZ (respuestas del servidor) ======
     socket.on('SPEAK_GRANTED', (data) => {
       console.log('[Arbitraje] GRANTED recibido');
-      if (isTransmitting) {
-        speakGranted = true;
-        beginRecording();
-      }
+      speakGranted = true;
+      // La grabación ya está en curso — no hacer nada más
     });
     
     socket.on('SPEAK_DENIED', (data) => {
       console.log('[Arbitraje] DENIED:', data.occupiedBy);
       showToast(`⏳ ${data.occupiedBy} está hablando`);
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      // Resetear el botón PTT
+      // Detener la grabación que ya inició (descartar audio)
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.ondataavailable = null; // No enviar lo grabado
+        mediaRecorder.stop();
+      }
       isTransmitting = false;
       speakGranted = false;
+      clearTimeout(transmitTimeout);
       const btn = document.getElementById('pttBtn');
       btn.classList.remove('active');
       document.getElementById('pttLabel').textContent = 'HABLAR';
@@ -458,27 +461,21 @@
 
     const btn = document.getElementById('pttBtn');
     btn.classList.add('active');
-    document.getElementById('pttLabel').textContent = 'SOLICITANDO...';
-    document.getElementById('pttHint').textContent = 'Esperando turno del servidor';
-
-    // Solicitar turno al servidor
-    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    socket.emit('REQUEST_TO_SPEAK', {
-      room: currentRoom,
-      userName: loggedInUser.nombre || 'Piloto',
-      userRole: loggedInUser.rol || 'piloto'
-    });
-  }
-
-  // Esta función se llama SOLO cuando el servidor confirma SPEAK_GRANTED
-  function beginRecording() {
     document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
     document.getElementById('pttHint').textContent = 'Suelta para terminar';
     showSpeaker('TÚ', '🎙️', true);
     if (navigator.vibrate) navigator.vibrate(50);
 
+    // Solicitar turno al servidor EN PARALELO (no bloquear)
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    
+    if (socket && currentRoom) {
+      socket.emit('REQUEST_TO_SPEAK', {
+        room: currentRoom,
+        userName: loggedInUser.nombre || 'Piloto',
+        userRole: loggedInUser.rol || 'piloto'
+      });
+    }
+
     // Timeout local de seguridad (15s)
     clearTimeout(transmitTimeout);
     transmitTimeout = setTimeout(() => {
@@ -486,29 +483,26 @@
       stopTransmit(false);
     }, MAX_LOCAL_SPEAK);
     
+    // GRABAR INMEDIATAMENTE (sin esperar respuesta del servidor)
+    const sender = {
+      name: loggedInUser.nombre || 'Piloto',
+      initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+    };
+    
     try {
       mediaRecorder = new MediaRecorder(micStream);
-      const chunks = [];
-      const sender = {
-        name: loggedInUser.nombre || 'Piloto',
-        initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-      };
       
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) chunks.push(event.data);
-      };
-      
-      mediaRecorder.onstop = () => {
-        if (chunks.length > 0 && socket && currentRoom) {
+        if (event.data.size > 0 && socket && currentRoom) {
           const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          const audioBlob = new Blob(chunks, { type: mimeType });
-          console.log(`[PTT] Enviando audio: ${audioBlob.size} bytes, tipo: ${mimeType}, sala: ${currentRoom}`);
-          socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
+          const blob = new Blob([event.data], { type: mimeType });
+          socket.emit('transmit_voice', { room: currentRoom, audioBlob: blob, mimeType, sender });
         }
       };
       
-      mediaRecorder.start();
-      console.log(`[PTT] Grabando con: ${mediaRecorder.mimeType}`);
+      // Enviar chunks cada 500ms para streaming casi en tiempo real
+      mediaRecorder.start(500);
+      console.log('[PTT] Grabando y transmitiendo en tiempo real');
     } catch (e) {
       console.warn('Error starting MediaRecorder:', e);
     }
