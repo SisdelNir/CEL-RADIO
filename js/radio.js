@@ -433,17 +433,9 @@
         }
         
         // ACTIVAR TRANSMISIÓN
+        // La propia función startTransmit ya tiene su timeout por inactividad de 15s
         startTransmit();
         showToast('🎙️ Transmisión manos libres activada');
-        
-        // Auto-cerrar después de 15 segundos
-        clearTimeout(handsFreeTimer);
-        handsFreeTimer = setTimeout(() => {
-          if (isTransmitting) {
-            stopTransmit();
-            showToast('🛑 Transmisión manos libres terminada (15s)');
-          }
-        }, 15000);
       }
     };
 
@@ -472,7 +464,61 @@
       isListening = false;
       document.getElementById('voiceIndicator').style.display = 'none';
     }
-    clearTimeout(handsFreeTimer);
+  }
+
+  // ============ VOICE ACTIVITY DETECTION (VAD) ============
+  let vadAudioCtx = null;
+  let vadAnalyser = null;
+  let vadSource = null;
+  let isCheckingVad = false;
+
+  function startVAD() {
+    if (!micStream) return;
+    
+    if (!vadAudioCtx) {
+      vadAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    if (!vadAnalyser) {
+      vadAnalyser = vadAudioCtx.createAnalyser();
+      vadAnalyser.fftSize = 256;
+      vadSource = vadAudioCtx.createMediaStreamSource(micStream);
+      vadSource.connect(vadAnalyser);
+    }
+    
+    if (vadAudioCtx.state === 'suspended') vadAudioCtx.resume();
+    
+    isCheckingVad = true;
+    checkVADLevel();
+  }
+  
+  function checkVADLevel() {
+    if (!isCheckingVad || !isTransmitting) return;
+    
+    const dataArray = new Uint8Array(vadAnalyser.frequencyBinCount);
+    vadAnalyser.getByteFrequencyData(dataArray);
+    
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    let average = sum / dataArray.length;
+    
+    // Umbral de ruido para considerarlo "habla" (10 sobre 255)
+    if (average > 10) {
+      // Reseteamos el timeout de inactividad
+      clearTimeout(transmitTimeout);
+      transmitTimeout = setTimeout(() => {
+        showToast('⏱️ Transmisión terminada por inactividad (15s)');
+        stopTransmit(false);
+      }, MAX_LOCAL_SPEAK);
+    }
+    
+    requestAnimationFrame(checkVADLevel);
+  }
+  
+  function stopVAD() {
+    isCheckingVad = false;
   }
 
   // ============ PTT LOGIC (Real Audio) ============
@@ -531,12 +577,15 @@
       });
     }
 
-    // Timeout local de seguridad (15s)
+    // Timeout de seguridad inicial por inactividad (15s)
     clearTimeout(transmitTimeout);
     transmitTimeout = setTimeout(() => {
-      showToast('⏱️ Tiempo máximo de transmisión (15s)');
+      showToast('⏱️ Transmisión terminada por inactividad (15s)');
       stopTransmit(false);
     }, MAX_LOCAL_SPEAK);
+    
+    // Iniciar el monitoreo de audio para resetear el timer mientras haya voz
+    startVAD();
     
     // GRABAR INMEDIATAMENTE (sin esperar respuesta del servidor)
     const sender = {
@@ -573,6 +622,7 @@
     isTransmitting = false;
     speakGranted = false;
     clearTimeout(transmitTimeout);
+    stopVAD();
 
     const btn = document.getElementById('pttBtn');
     btn.classList.remove('active');
