@@ -169,14 +169,24 @@
       }
     });
     
-    // ── Recibir audio y reproducir inmediatamente ──
+    // ── Recibir audio y reproducir con cola secuencial ──
     let speakerTimeout = null;
-    socket.on('receive_voice', async (data) => {
-      const { audioBlob, sender, mimeType } = data;
-      if (!audioBlob) return;
+    const audioQueue = [];
+    let isPlaying = false;
+    
+    async function playNextInQueue() {
+      if (audioQueue.length === 0) {
+        isPlaying = false;
+        // Ocultar speaker 2s después del último audio
+        clearTimeout(speakerTimeout);
+        speakerTimeout = setTimeout(() => hideSpeaker(), 2000);
+        return;
+      }
+      isPlaying = true;
+      const { audioBlob, mimeType, sender } = audioQueue.shift();
       showSpeaker(sender.name, sender.initials, false);
       
-      // Safety timeout: ocultar speaker después de 10s máx
+      // Resetear timeout mientras se reproduce
       clearTimeout(speakerTimeout);
       speakerTimeout = setTimeout(() => hideSpeaker(), 10000);
       
@@ -189,25 +199,39 @@
         const source = globalAudioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(globalAudioCtx.destination);
-        source.onended = () => { clearTimeout(speakerTimeout); hideSpeaker(); };
+        source.onended = () => playNextInQueue();
         source.start(0);
       } catch (err) {
         console.warn('AudioContext decode failed, trying <audio> fallback:', err);
-        // Fallback: usar el elemento <audio> persistente
         try {
           const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
           const url = URL.createObjectURL(blob);
           const liveAudio = document.getElementById('liveAudio');
           if (liveAudio) {
             liveAudio.src = url;
-            liveAudio.onended = () => { clearTimeout(speakerTimeout); hideSpeaker(); URL.revokeObjectURL(url); };
-            liveAudio.onerror = () => { clearTimeout(speakerTimeout); hideSpeaker(); URL.revokeObjectURL(url); };
+            liveAudio.onended = () => { URL.revokeObjectURL(url); playNextInQueue(); };
+            liveAudio.onerror = () => { URL.revokeObjectURL(url); playNextInQueue(); };
             await liveAudio.play();
+          } else {
+            playNextInQueue();
           }
         } catch (fallbackErr) {
           console.warn('Audio fallback also failed:', fallbackErr);
-          hideSpeaker();
+          playNextInQueue();
         }
+      }
+    }
+    
+    socket.on('receive_voice', (data) => {
+      const { audioBlob, sender, mimeType } = data;
+      if (!audioBlob) return;
+      
+      // Encolar el audio
+      audioQueue.push({ audioBlob, sender, mimeType });
+      
+      // Si no hay nada reproduciéndose, empezar
+      if (!isPlaying) {
+        playNextInQueue();
       }
     });
     
@@ -600,34 +624,45 @@
       startVAD();
     }
     
-    // GRABAR INMEDIATAMENTE (sin esperar respuesta del servidor)
+    // GRABAR EN CICLOS DE 2 SEGUNDOS (cada blob es completo y decodificable)
     const sender = {
       name: loggedInUser.nombre || 'Piloto',
       initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
     };
     
-    try {
-      mediaRecorder = new MediaRecorder(micStream);
-      const chunks = [];
-      
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) chunks.push(event.data);
-      };
-      
-      mediaRecorder.onstop = () => {
-        if (chunks.length > 0 && socket && currentRoom) {
-          const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          const audioBlob = new Blob(chunks, { type: mimeType });
-          console.log('[PTT] Enviando blob completo:', audioBlob.size, 'bytes');
-          socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
-        }
-      };
-      
-      mediaRecorder.start();
-      console.log('[PTT] Grabando audio completo');
-    } catch (e) {
-      console.warn('Error starting MediaRecorder:', e);
+    function recordCycle() {
+      if (!isTransmitting || !micStream) return;
+      try {
+        mediaRecorder = new MediaRecorder(micStream);
+        const chunks = [];
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+          if (chunks.length > 0 && socket && currentRoom) {
+            const audioBlob = new Blob(chunks, { type: mimeType });
+            socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
+          }
+          // Siguiente ciclo inmediato
+          if (isTransmitting) setTimeout(recordCycle, 30);
+        };
+        
+        mediaRecorder.start();
+        // Cortar cada 2 segundos para enviar blob completo
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+        }, 2000);
+      } catch (e) {
+        console.warn('Error starting MediaRecorder cycle:', e);
+      }
     }
+    recordCycle();
+    console.log('[PTT] Grabando en ciclos de 2s');
   }
 
   function stopTransmit(abort) {
