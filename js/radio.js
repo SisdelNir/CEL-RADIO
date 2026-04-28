@@ -104,27 +104,44 @@
   function setupSocketReceivers() {
     if (!socket) return;
     
+    let globalAudioCtx = null;
+    
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
 
-      // Reproducir audio
-      const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      
-      // Mostrar quién habla
       showSpeaker(sender.name, sender.initials, false);
-      
-      audio.onended = () => {
-        hideSpeaker();
-        URL.revokeObjectURL(url);
-      };
-      
+
       try {
-        await audio.play();
+        if (!globalAudioCtx) {
+          globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (globalAudioCtx.state === 'suspended') {
+          await globalAudioCtx.resume();
+        }
+
+        const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
+        const arrayBuffer = await blob.arrayBuffer();
+        
+        globalAudioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+          const source = globalAudioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(globalAudioCtx.destination);
+          
+          source.onended = () => {
+            hideSpeaker();
+          };
+          
+          source.start(0);
+        }, (err) => {
+          console.error("Error decodificando audio (Safari incompatibility):", err);
+          hideSpeaker();
+          showToast("⚠️ Formato de audio incompatible recibido");
+        });
+
       } catch (err) {
-        console.warn("Autoplay prevent:", err);
+        console.warn("Audio playback prevent:", err);
+        hideSpeaker();
       }
     });
   }
