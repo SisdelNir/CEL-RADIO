@@ -550,7 +550,21 @@
     }
 
     // =========== INIT ===========
-    renderList();
+    async function init() {
+      try {
+        const res = await fetch('/api/empresas');
+        if (res.ok) {
+          const dbEmpresas = await res.json();
+          empresas = dbEmpresas;
+          localStorage.setItem('cel_empresas', JSON.stringify(empresas));
+        }
+      } catch (err) {
+        console.error("Error cargando empresas del servidor", err);
+      }
+      renderList();
+    }
+    
+    init();
   </script>
 </body>
 </html>
