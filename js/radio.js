@@ -61,10 +61,20 @@
   // ============ STATE ============
   let currentChannel = null;
   let isTransmitting = false;
-  let audioCtx = null;
-  let oscillator = null;
-  let simulationInterval = null;
   let currentPrivateUser = null;
+
+  // Real-time Audio state
+  let socket = null;
+  if (typeof io !== 'undefined') {
+    socket = io();
+  } else {
+    console.warn("Socket.io no cargó correctamente");
+  }
+
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let currentRoom = null;
+  let micStream = null;
 
   // Speech Recognition state
   let recognition = null;
@@ -78,7 +88,45 @@
     setupPTT();
     setupModals();
     setupEmergency();
-    startSimulation();
+    requestMicrophone();
+    setupSocketReceivers();
+  }
+
+  async function requestMicrophone() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      console.warn("Microphone access denied or error:", err);
+      showToast("⚠️ Activa el permiso del micrófono");
+    }
+  }
+
+  function setupSocketReceivers() {
+    if (!socket) return;
+    
+    socket.on('receive_voice', async (data) => {
+      const { audioBlob, sender } = data;
+      if (!audioBlob) return;
+
+      // Reproducir audio
+      const blob = new Blob([audioBlob], { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      
+      // Mostrar quién habla
+      showSpeaker(sender.name, sender.initials, false);
+      
+      audio.onended = () => {
+        hideSpeaker();
+        URL.revokeObjectURL(url);
+      };
+      
+      try {
+        await audio.play();
+      } catch (err) {
+        console.warn("Autoplay prevent:", err);
+      }
+    });
   }
 
   function loadTenantInfo() {
@@ -127,6 +175,13 @@
       idleIcon.textContent = '📞';
       idleText.textContent = 'Línea privada — listo para hablar';
       startVoiceRecognition();
+      
+      if (socket) {
+        let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+        const roomName = `private_${tenant.id}_${Math.min(loggedInUser.id, currentPrivateUser.id)}_${Math.max(loggedInUser.id, currentPrivateUser.id)}`;
+        currentRoom = roomName;
+        socket.emit('join_channel', { channelId: roomName, empresaId: tenant.id, userName: loggedInUser.nombre });
+      }
     } else {
       labelEl.textContent = 'Canal Activo';
       nameEl.textContent = `📻 ${currentChannel.name}`;
@@ -134,6 +189,13 @@
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
       startVoiceRecognition();
+      
+      if (socket) {
+        let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+        const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+        currentRoom = `empresa_${tenant.id}_canal_${currentChannel.id}`;
+        socket.emit('join_channel', { channelId: currentChannel.id, empresaId: tenant.id, userName: loggedInUser.nombre });
+      }
     }
   }
 
@@ -202,11 +264,9 @@
     }
   }
 
-  // ============ PTT LOGIC ============
+  // ============ PTT LOGIC (Real Audio) ============
   function setupPTT() {
     const btn = document.getElementById('pttBtn');
-    const label = document.getElementById('pttLabel');
-    const hint = document.getElementById('pttHint');
 
     // Mouse events
     btn.addEventListener('mousedown', startTransmit);
@@ -227,21 +287,23 @@
     });
   }
 
-  let delayTimer = null;
-  let countdownTimer = null;
-
   function startTransmit() {
     if (isTransmitting) return;
     if (!currentChannel && !currentPrivateUser) {
-      showToast('⚠️ Debes conectarte a un canal primero', 'error');
+      showToast('⚠️ Debes conectarte a un canal primero');
+      return;
+    }
+    
+    if (!micStream) {
+      showToast('⚠️ Permiso de micrófono requerido');
+      requestMicrophone();
       return;
     }
 
     isTransmitting = true;
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.add('active'); // Added .active for CSS animations
-    
+    btn.classList.add('active');
     document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
     document.getElementById('pttHint').textContent = 'Suelta para terminar';
 
@@ -250,28 +312,56 @@
 
     // Vibrate feedback
     if (navigator.vibrate) navigator.vibrate(50);
-
-    // Audio feedback tone
-    playTone(880, 100);
-    setTimeout(() => playTone(1100, 100), 120);
+    
+    // Start MediaRecorder
+    try {
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(micStream);
+      
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        if (audioChunks.length > 0 && socket && currentRoom) {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+          
+          socket.emit('transmit_voice', {
+            room: currentRoom,
+            audioBlob: audioBlob,
+            sender: {
+              name: loggedInUser.nombre || 'Piloto',
+              initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+            }
+          });
+        }
+      };
+      
+      mediaRecorder.start();
+    } catch (e) {
+      console.warn("Error starting MediaRecorder:", e);
+    }
   }
 
   function stopTransmit() {
     if (!isTransmitting) return;
     isTransmitting = false;
 
-    clearTimeout(handsFreeTimer); // Cancel hands-free timeout if manual stop
+    clearTimeout(handsFreeTimer);
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.remove('active'); // Removed .active
+    btn.classList.remove('active');
     document.getElementById('pttLabel').textContent = 'HABLAR';
     document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
 
     hideSpeaker();
 
-    // Audio feedback
-    playTone(1100, 80);
-    setTimeout(() => playTone(880, 80), 100);
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
 
     if (navigator.vibrate) navigator.vibrate(30);
   }
@@ -299,42 +389,9 @@
     }, 350);
   }
 
-  // ============ SIMULATE OTHER USERS TALKING ============
-  function startSimulation() {
-    if (users.length === 0) return; // Sin usuarios, no simular
-    simulationInterval = setInterval(() => {
-      if (isTransmitting || users.length === 0) return;
-      if (Math.random() > 0.7) {
-        const u = users[Math.floor(Math.random() * users.length)];
-        if (!u || !u.online) return;
-        showSpeaker(u.name, u.initials, false);
-        playTone(600, 60);
-        const duration = 2000 + Math.random() * 4000;
-        setTimeout(() => {
-          if (!isTransmitting) {
-            hideSpeaker();
-            playTone(400, 60);
-          }
-        }, duration);
-      }
-    }, 8000); // Cada 8 segundos (más ligero)
-  }
-
-  // ============ AUDIO FEEDBACK ============
+  // ============ AUDIO FEEDBACK (REMOVED: Old Beeps) ============
   function playTone(freq, duration) {
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.value = 0.1;
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
-      osc.stop(audioCtx.currentTime + duration / 1000 + 0.05);
-    } catch(e) {}
+    // Las transmisiones de voz reales reemplazan a estos beeps.
   }
 
   // ============ MODALS ============
