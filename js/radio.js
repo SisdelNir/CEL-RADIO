@@ -104,14 +104,29 @@
     
     if (!overlay || !btn) return;
     
-    btn.addEventListener('click', () => {
-      // This click gesture unlocks AudioContext on iOS/Android
-      unlockAudioContext();
-      statusText.innerHTML = '✅ ¡Radio activado!';
+    btn.addEventListener('click', async () => {
+      btn.style.opacity = '0.6';
+      btn.disabled = true;
+      statusText.innerHTML = '⏳ Activando micrófono...';
       
+      // Unlock AudioContext with this user gesture
+      unlockAudioContext();
+      
+      // Request microphone
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+        });
+        statusText.innerHTML = '✅ ¡Micrófono activado!';
+      } catch (err) {
+        console.warn('Mic denied:', err);
+        statusText.innerHTML = '⚠️ Sin micrófono — entrarás en modo escucha';
+      }
+      
+      // Enter the radio regardless
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 400);
+      }, 800);
     });
   }
 
