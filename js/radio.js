@@ -397,8 +397,13 @@
   }
 
   // ============ HANDS-FREE VOICE RECOGNITION ============
+  let isVoicePausedForPTT = false;
+
   function startVoiceRecognition() {
     if (isListening || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+    
+    // Si estamos transmitiendo o está pausado, no iniciar
+    if (isTransmitting || isVoicePausedForPTT) return;
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -441,8 +446,8 @@
       isListening = false;
       document.getElementById('voiceIndicator').style.display = 'none';
       
-      // Solo reiniciar si el Modo Manos Libres está activado
-      if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
+      // Solo reiniciar si el Modo Manos Libres está activado y NO estamos transmitiendo (PTT)
+      if (isHandsFreeMode && !isVoicePausedForPTT && (currentChannel || currentPrivateUser)) {
         try { recognition.start(); } catch(e) {}
       }
     };
@@ -491,6 +496,10 @@
 
   async function startTransmit() {
     if (isTransmitting) return;
+    
+    // Pausar Manos Libres temporalmente para que MediaRecorder pueda usar el micrófono
+    isVoicePausedForPTT = true;
+    stopVoiceRecognition();
     
     unlockAudioContext();
 
@@ -614,6 +623,12 @@
     }
 
     if (navigator.vibrate) navigator.vibrate(30);
+    
+    // Reanudar Manos Libres si estaba activado
+    isVoicePausedForPTT = false;
+    if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
+      setTimeout(startVoiceRecognition, 500); // Pequeño delay para liberar el hardware
+    }
   }
 
   // ============ SPEAKER DISPLAY ============
