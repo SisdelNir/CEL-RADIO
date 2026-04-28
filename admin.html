@@ -925,9 +925,13 @@
       document.getElementById('userModal').classList.remove('active');
     }
 
-    // ─── Save (Create or Update) ───
     async function saveUser(e) {
       e.preventDefault();
+
+      const btn = document.getElementById('userSubmitBtn');
+      const originalText = btn.textContent;
+      btn.textContent = 'Guardando...';
+      btn.disabled = true;
 
       const editId = document.getElementById('usrEditId').value;
       const nombre = document.getElementById('usrNombre').value.trim();
@@ -938,10 +942,13 @@
 
       if (!nombre || !identificacion || !telefono) {
         showToast('❌ Todos los campos obligatorios deben completarse', 'error');
+        btn.textContent = originalText;
+        btn.disabled = false;
         return;
       }
 
-      const users = await loadUsers();
+      // Evitar fetch largo, usar local temporalmente para optimizar
+      let users = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) || '[]');
 
       if (editId) {
         // UPDATE
@@ -995,6 +1002,9 @@
         showUserCodeModal(newUser.nombre, codigo);
         showToast(`✅ Usuario "${nombre}" creado — Código: ${codigo}`);
       }
+
+      btn.textContent = originalText;
+      btn.disabled = false;
     }
 
     // ─── Delete ───
