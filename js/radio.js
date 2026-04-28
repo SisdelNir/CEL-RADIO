@@ -286,7 +286,7 @@
       usersEl.textContent = 'Comunicación privada enlazada';
       idleIcon.textContent = '📞';
       idleText.textContent = 'Línea privada — listo para hablar';
-      startVoiceRecognition();
+      if (isHandsFreeMode) startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
@@ -300,7 +300,7 @@
       usersEl.innerHTML = `👥 <span id="userCount">${currentChannel.users}</span> conectados`;
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
-      startVoiceRecognition();
+      if (isHandsFreeMode) startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
