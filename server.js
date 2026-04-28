@@ -78,18 +78,23 @@ app.delete('/api/usuarios/:id', (req, res) => {
 app.get('/api/canales/:empresaId', (req, res) => {
   db.all('SELECT * FROM canales WHERE empresa_id = ?', [req.params.empresaId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    // Transform to match old frontend
-    const canales = rows.map(r => ({
-      id: r.id, name: r.nombre, icon: r.icono, type: r.tipo, mode: r.modo, users: 0 // Users managed by sockets
-    }));
-    res.json(canales);
+    res.json(rows);
   });
 });
 
 app.post('/api/canales', (req, res) => {
-  const { id, empresa_id, name, icon, type, mode } = req.body;
-  const sql = `INSERT INTO canales (id, empresa_id, nombre, icono, tipo, modo) VALUES (?, ?, ?, ?, ?, ?)`;
-  db.run(sql, [id, empresa_id, name, icon, type, mode], function(err) {
+  const { empresa_id, nombre, icono, tipo, modo, estado, descripcion } = req.body;
+  const sql = `INSERT INTO canales (empresa_id, nombre, icono, tipo, modo, estado, descripcion) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+  db.run(sql, [empresa_id, nombre, icono || '🛣️', tipo || 'grupo', modo || 'ptt', estado || 'activo', descripcion || ''], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ id: this.lastID, success: true });
+  });
+});
+
+app.put('/api/canales/:id', (req, res) => {
+  const { nombre, icono, tipo, modo, estado, descripcion } = req.body;
+  const sql = `UPDATE canales SET nombre = ?, icono = ?, tipo = ?, modo = ?, estado = ?, descripcion = ? WHERE id = ?`;
+  db.run(sql, [nombre, icono, tipo, modo, estado, descripcion, req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });

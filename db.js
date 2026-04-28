@@ -48,14 +48,20 @@ function initDb() {
 
     // Tabla Canales
     db.run(`CREATE TABLE IF NOT EXISTS canales (
-      id TEXT PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       empresa_id TEXT NOT NULL,
       nombre TEXT NOT NULL,
-      icono TEXT,
+      icono TEXT DEFAULT '🛣️',
       tipo TEXT DEFAULT 'grupo',
       modo TEXT DEFAULT 'ptt',
+      estado TEXT DEFAULT 'activo',
+      descripcion TEXT DEFAULT '',
       FOREIGN KEY(empresa_id) REFERENCES empresas(id)
     )`);
+
+    // Migracion: agregar columnas faltantes si ya existe la tabla
+    db.run(`ALTER TABLE canales ADD COLUMN estado TEXT DEFAULT 'activo'`, () => {});
+    db.run(`ALTER TABLE canales ADD COLUMN descripcion TEXT DEFAULT ''`, () => {});
   });
 }
 

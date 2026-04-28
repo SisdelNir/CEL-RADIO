@@ -551,21 +551,21 @@
     // Default seed channels (Eliminados por solicitud)
     const DEFAULT_CHANNELS = [];
 
-    // Load channels from localStorage or use defaults
-    function loadChannels() {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try { return JSON.parse(stored); } catch { /* fallback */ }
+    // ─── Load channels from API (persistent DB) ───
+    async function loadChannels() {
+      try {
+        const res = await fetch(`/api/canales/${empresa.id}`);
+        if (!res.ok) throw new Error('API error');
+        return await res.json();
+      } catch (err) {
+        console.warn('[Canales] Fallo API, sin datos:', err);
+        return [];
       }
-      return [];
     }
 
+    // Legacy localStorage — ya no se usa, se conserva solo por compatibilidad
     function saveChannelsToStorage(channels) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)); } catch(e) { console.warn(e); }
-    }
-
-    function getNextId(channels) {
-      return channels.length > 0 ? Math.max(...channels.map(c => c.id)) + 1 : 1;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(channels)); } catch(e) {}
     }
 
     // Type badge mapping
@@ -577,8 +577,8 @@
     };
 
     // Render all channels to table
-    function renderChannels() {
-      const channels = loadChannels();
+    async function renderChannels() {
+      const channels = await loadChannels();
       const tbody = document.getElementById('channelsTableBody');
 
       if (channels.length === 0) {
@@ -659,8 +659,8 @@
     }
 
     // ─── Modal: Open for Edit ───
-    function editChannel(id) {
-      const channels = loadChannels();
+    async function editChannel(id) {
+      const channels = await loadChannels();
       const ch = channels.find(c => c.id === id);
       if (!ch) return;
 
@@ -688,9 +688,14 @@
       document.getElementById('channelModal').classList.remove('active');
     }
 
-    // ─── Save (Create or Update) ───
-    function saveChannel(e) {
+    // ─── Save (Create or Update) → persiste en la base de datos ───
+    async function saveChannel(e) {
       e.preventDefault();
+
+      const btn = document.getElementById('channelSubmitBtn');
+      const originalText = btn.textContent;
+      btn.textContent = 'Guardando...';
+      btn.disabled = true;
 
       const editId = document.getElementById('chEditId').value;
       const nombre = document.getElementById('chNombre').value.trim();
@@ -701,61 +706,62 @@
 
       if (!nombre) {
         showToast('❌ El nombre del canal es obligatorio', 'error');
+        btn.textContent = originalText;
+        btn.disabled = false;
         return;
       }
 
-      const channels = loadChannels();
-
-      if (editId) {
-        // UPDATE existing
-        const idx = channels.findIndex(c => c.id === parseInt(editId));
-        if (idx !== -1) {
-          channels[idx].nombre = nombre;
-          channels[idx].icono = selectedIcon;
-          channels[idx].tipo = tipo;
-          channels[idx].modo = modo;
-          channels[idx].estado = estado;
-          channels[idx].descripcion = descripcion;
+      try {
+        if (editId) {
+          // UPDATE en base de datos
+          const res = await fetch(`/api/canales/${editId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, icono: selectedIcon, tipo, modo, estado, descripcion })
+          });
+          if (!res.ok) throw new Error('Error al actualizar');
+          showToast(`✅ Canal "${nombre}" actualizado`);
+        } else {
+          // CREATE en base de datos
+          const res = await fetch('/api/canales', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              empresa_id: empresa.id,
+              nombre,
+              icono: selectedIcon,
+              tipo,
+              modo,
+              estado,
+              descripcion
+            })
+          });
+          if (!res.ok) throw new Error('Error al crear');
+          showToast(`✅ Canal "${nombre}" creado exitosamente`);
         }
-        saveChannelsToStorage(channels);
-        renderChannels();
-        closeChannelModal();
-        showToast(`✅ Canal "${nombre}" actualizado`);
-      } else {
-        // CREATE new
-        const newChannel = {
-          id: getNextId(channels),
-          nombre,
-          icono: selectedIcon,
-          tipo,
-          modo,
-          usuarios: 0,
-          estado,
-          descripcion,
-        };
-        channels.push(newChannel);
-        saveChannelsToStorage(channels);
-        renderChannels();
-        closeChannelModal();
-        showToast(`✅ Canal "${nombre}" creado exitosamente`);
 
-        // Animate the new row
-        setTimeout(() => {
-          const lastRow = document.querySelector('#channelsTableBody tr:last-child');
-          if (lastRow) lastRow.classList.add('ch-row-new');
-        }, 50);
+        await renderChannels();
+        closeChannelModal();
+      } catch (err) {
+        console.error('[Canal] Error al guardar:', err);
+        showToast('❌ Error al guardar el canal. Intenta de nuevo.', 'error');
       }
+
+      btn.textContent = originalText;
+      btn.disabled = false;
     }
 
     // ─── Delete ───
     let deleteTargetId = null;
+    let deleteTargetName = '';
 
-    function deleteChannel(id) {
-      const channels = loadChannels();
+    async function deleteChannel(id) {
+      const channels = await loadChannels();
       const ch = channels.find(c => c.id === id);
       if (!ch) return;
 
       deleteTargetId = id;
+      deleteTargetName = ch.nombre;
       document.getElementById('deleteChannelName').textContent = `"${ch.nombre}"`;
       document.getElementById('deleteChannelModal').classList.add('active');
     }
@@ -767,22 +773,18 @@
 
     async function confirmDeleteChannel() {
       if (deleteTargetId === null) return;
-
-      let channels = loadChannels();
-      const ch = channels.find(c => c.id === deleteTargetId);
-      const name = ch ? ch.nombre : '';
+      const name = deleteTargetName;
 
       try {
-        await fetch(`/api/canales/${deleteTargetId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/canales/${deleteTargetId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al eliminar');
+        await renderChannels();
+        closeDeleteModal();
+        showToast(`🗑️ Canal "${name}" eliminado`);
       } catch(e) {
-        console.warn("Fallo al borrar canal en API:", e);
+        console.error('Error al eliminar canal:', e);
+        showToast('❌ Error al eliminar el canal', 'error');
       }
-
-      channels = channels.filter(c => c.id !== deleteTargetId);
-      saveChannelsToStorage(channels);
-      renderChannels();
-      closeDeleteModal();
-      showToast(`🗑️ Canal "${name}" eliminado`);
     }
 
     // ─── Close modals on overlay click ───
