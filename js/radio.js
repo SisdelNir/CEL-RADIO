@@ -99,34 +99,44 @@
   // ============ ACTIVATION OVERLAY ============
   function setupActivation() {
     const overlay = document.getElementById('activationOverlay');
-    const btn = document.getElementById('btnActivateRadio');
+    const toggle = document.getElementById('micToggle');
+    const enterBtn = document.getElementById('btnEnterRadio');
     const statusText = document.getElementById('activationStatus');
     
-    if (!overlay || !btn) return;
+    if (!overlay || !toggle || !enterBtn) return;
     
-    btn.addEventListener('click', async () => {
-      btn.style.opacity = '0.6';
-      btn.disabled = true;
-      statusText.innerHTML = '⏳ Activando micrófono...';
-      
-      // Unlock AudioContext with this user gesture
-      unlockAudioContext();
-      
-      // Request microphone
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ 
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-        });
-        statusText.innerHTML = '✅ ¡Micrófono activado!';
-      } catch (err) {
-        console.warn('Mic denied:', err);
-        statusText.innerHTML = '⚠️ Sin micrófono — entrarás en modo escucha';
+    // When the user flips the toggle → request microphone
+    toggle.addEventListener('change', async () => {
+      if (toggle.checked) {
+        statusText.innerHTML = '⏳ Activando micrófono...';
+        
+        unlockAudioContext();
+        
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+          });
+          statusText.innerHTML = '<span style="color:#10b981">✅ Micrófono activado</span>';
+          enterBtn.disabled = false;
+        } catch (err) {
+          console.warn('Mic denied:', err);
+          toggle.checked = false;
+          statusText.innerHTML = '<span style="color:#ff6b6b">❌ Permiso denegado. Abre en Safari/Chrome directamente.</span>';
+        }
+      } else {
+        // User turned off the toggle
+        if (micStream) {
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+        }
+        enterBtn.disabled = true;
+        statusText.innerHTML = 'Activa el micrófono para continuar';
       }
-      
-      // Enter the radio regardless
-      setTimeout(() => {
-        overlay.classList.add('hidden');
-      }, 800);
+    });
+    
+    // Enter button → go to the radio
+    enterBtn.addEventListener('click', () => {
+      overlay.classList.add('hidden');
     });
   }
 

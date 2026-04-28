@@ -206,36 +206,88 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 20px;
+      gap: 24px;
       padding: 40px;
     }
     .activation-overlay.hidden { display: none; }
     .activation-overlay .title { font-size: 22px; font-weight: 900; color: #fff; text-align: center; }
-    .activation-overlay .subtitle { font-size: 14px; color: #94a3b8; text-align: center; line-height: 1.6; max-width: 300px; }
-    .activation-overlay .activate-btn {
-      width: 180px; height: 180px;
-      border-radius: 50%;
-      border: 3px solid rgba(16,185,129,0.4);
-      background: linear-gradient(145deg, #10b981, #059669);
-      box-shadow: 0 0 60px rgba(16,185,129,0.3);
-      color: #fff;
-      font-size: 18px;
-      font-weight: 800;
-      cursor: pointer;
+    .activation-card {
+      background: rgba(30, 36, 50, 0.8);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 340px;
+    }
+    .activation-row {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: transform 0.2s, box-shadow 0.2s;
-      -webkit-tap-highlight-color: transparent;
+      justify-content: space-between;
+      gap: 14px;
     }
-    .activation-overlay .activate-btn:active {
-      transform: scale(0.92);
-      box-shadow: 0 0 80px rgba(16,185,129,0.5);
+    .activation-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    .activation-overlay .activate-btn .big-icon { font-size: 52px; }
-    .activation-overlay .status-text { font-size: 13px; color: #64748b; text-align: center; }
+    .activation-status {
+      text-align: center;
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 18px;
+      min-height: 20px;
+    }
+    .activation-enter-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 16px;
+      background: linear-gradient(145deg, #10b981, #059669);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .activation-enter-btn:disabled {
+      background: rgba(255,255,255,0.08);
+      color: #64748b;
+      cursor: not-allowed;
+    }
+    .activation-enter-btn:not(:disabled):active { transform: scale(0.97); }
+    /* Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      width: 56px;
+      height: 30px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #333;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 24px; height: 24px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: #10b981;
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(26px);
+    }
 
     /* Channel Users Modal */
     .channel-users-list { list-style: none; padding: 10px 0; }
@@ -261,12 +313,23 @@
   <!-- Activation Overlay -->
   <div class="activation-overlay" id="activationOverlay">
     <div class="title">📡 CEL-RADIO</div>
-    <div class="subtitle">Para comunicarte necesitas activar el micrófono de tu dispositivo.</div>
-    <button class="activate-btn" id="btnActivateRadio">
-      <span class="big-icon">🎤</span>
-      <span>ACTIVAR<br>MICRÓFONO</span>
-    </button>
-    <div class="status-text" id="activationStatus">Presiona para activar</div>
+    <div class="activation-card">
+      <div class="activation-row">
+        <div class="activation-label">
+          <span style="font-size:24px">🎤</span>
+          <div>
+            <div style="font-weight:700;color:#fff;font-size:15px">Micrófono</div>
+            <div style="font-size:12px;color:#94a3b8">Necesario para hablar</div>
+          </div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="micToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="activation-status" id="activationStatus">Activa el micrófono para continuar</div>
+      <button class="activation-enter-btn" id="btnEnterRadio" disabled>ENTRAR</button>
+    </div>
   </div>
 
   <div class="radio-app" id="radioApp">
