@@ -14,15 +14,22 @@
   
   let channels = [];
   try {
-    const res = await fetch(`/api/canales/${tenant.id}`);
-    if (res.ok) channels = await res.json();
+    const res = await fetch(`/api/canales/${tenant.id}`).catch(() => null);
+    if (res && res.ok) {
+       channels = await res.json();
+    }
   } catch (e) {
-    console.warn("Fallback local channels");
-    const chKey = tenant.id ? `cel_channels_${tenant.id}` : 'cel_channels';
-    const stored = JSON.parse(localStorage.getItem(chKey) || '[]');
-    channels = stored.filter(c => c.estado === 'activo').map(c => ({
-      id: c.id, name: c.nombre, icon: c.icono, type: c.tipo, users: c.usuarios || 0, mode: c.modo
-    }));
+    console.warn(e);
+  }
+  
+  const chKey = tenant.id ? `cel_channels_${tenant.id}` : 'cel_channels';
+  const storedChannels = JSON.parse(localStorage.getItem(chKey) || '[]');
+  const localC = storedChannels.filter(c => c.estado === 'activo').map(c => ({
+    id: c.id, name: c.nombre, icon: c.icono, type: c.tipo, users: c.usuarios || 0, mode: c.modo
+  }));
+  
+  for (const lc of localC) {
+    if (!channels.find(c => c.id === lc.id)) channels.push(lc);
   }
 
   if (channels.length === 0) {
@@ -33,8 +40,8 @@
 
   let users = [];
   try {
-    const res = await fetch(`/api/usuarios/${tenant.id}`);
-    if (res.ok) {
+    const res = await fetch(`/api/usuarios/${tenant.id}`).catch(() => null);
+    if (res && res.ok) {
       const rawUsers = await res.json();
       users = rawUsers.map(u => ({
         id: u.id,
@@ -45,13 +52,18 @@
       }));
     }
   } catch (e) {
-    console.warn("Fallback local users");
-    const usrKey = tenant.id ? `cel_users_${tenant.id}` : 'cel_users';
-    const storedU = JSON.parse(localStorage.getItem(usrKey) || '[]');
-    users = storedU.map(u => ({
-      id: u.id, name: u.nombre, initials: (u.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(),
-      role: u.rol || 'Piloto', online: u.estado === 'en_linea' || u.estado === 'activo'
-    }));
+    console.warn(e);
+  }
+
+  const usrKey = tenant.id ? `cel_users_${tenant.id}` : 'cel_users';
+  const storedU = JSON.parse(localStorage.getItem(usrKey) || '[]');
+  const localUsers = storedU.map(u => ({
+    id: u.id, name: u.nombre, initials: (u.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase(),
+    role: u.rol || 'Piloto', online: u.estado === 'en_linea' || u.estado === 'activo'
+  }));
+
+  for (const lu of localUsers) {
+    if (!users.find(u => u.id === lu.id)) users.push(lu);
   }
 
   // ============ STATE ============
