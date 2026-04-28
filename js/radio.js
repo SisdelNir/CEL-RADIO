@@ -577,8 +577,13 @@
       renderChannels();
       channelModal.classList.add('active');
     });
+    // Cerrar solo al tocar el overlay (fondo oscuro), NO al tocar el contenido
     channelModal.addEventListener('click', (e) => {
       if (e.target === channelModal) channelModal.classList.remove('active');
+    });
+    // Evitar que clicks dentro del contenido cierren el modal
+    channelModal.querySelector('.modal-content').addEventListener('click', (e) => {
+      e.stopPropagation();
     });
 
     // Private modal
@@ -589,6 +594,9 @@
     });
     privateModal.addEventListener('click', (e) => {
       if (e.target === privateModal) privateModal.classList.remove('active');
+    });
+    privateModal.querySelector('.modal-content').addEventListener('click', (e) => {
+      e.stopPropagation();
     });
 
     // Logout
@@ -626,16 +634,20 @@
     }
 
     list.querySelectorAll('.channel-item').forEach(item => {
-      item.addEventListener('click', () => {
+      const selectChannel = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const ch = channels.find(x => String(x.id) === item.dataset.id);
         if (ch) {
           currentChannel = ch;
           currentPrivateUser = null;
           updateChannelDisplay();
           document.getElementById('channelModal').classList.remove('active');
-          showToast(`Conectado a Canal: ${ch.name}`);
+          showToast(`📻 Conectado a Canal: ${ch.name}`);
         }
-      });
+      };
+      item.addEventListener('click', selectChannel);
+      item.addEventListener('touchend', selectChannel);
     });
   }
 
