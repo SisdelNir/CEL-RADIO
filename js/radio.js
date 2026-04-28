@@ -109,11 +109,9 @@
     toggle.addEventListener('change', async () => {
       if (toggle.checked) {
         statusText.innerHTML = '⏳ Activando micrófono...';
-        enterBtn.disabled = false; // Always enable ENTRAR
         
         unlockAudioContext();
         
-        // Race: getUserMedia vs 3-second timeout
         const micPromise = navigator.mediaDevices.getUserMedia({ 
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
         });
@@ -133,7 +131,6 @@
           micStream.getTracks().forEach(t => t.stop());
           micStream = null;
         }
-        enterBtn.disabled = true;
         statusText.innerHTML = 'Activa el micrófono para continuar';
       }
     });
