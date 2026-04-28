@@ -98,46 +98,14 @@
 
   // ============ ACTIVATION OVERLAY ============
   function setupActivation() {
-    const overlay = document.getElementById('activationOverlay');
-    const toggle = document.getElementById('micToggle');
     const enterBtn = document.getElementById('btnEnterRadio');
-    const statusText = document.getElementById('activationStatus');
+    const overlay = document.getElementById('activationOverlay');
     
-    if (!overlay || !toggle || !enterBtn) return;
-    
-    // When the user flips the toggle → request microphone
-    toggle.addEventListener('change', async () => {
-      if (toggle.checked) {
-        statusText.innerHTML = '⏳ Activando micrófono...';
-        
-        unlockAudioContext();
-        
-        const micPromise = navigator.mediaDevices.getUserMedia({ 
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-        });
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), 3000)
-        );
-        
-        try {
-          micStream = await Promise.race([micPromise, timeoutPromise]);
-          statusText.innerHTML = '<span style="color:#10b981">✅ Micrófono activado — Presiona ENTRAR</span>';
-        } catch (err) {
-          console.warn('Mic issue:', err);
-          statusText.innerHTML = '<span style="color:#fbbf24">⚠️ Micrófono pendiente — Puedes entrar</span>';
-        }
-      } else {
-        if (micStream) {
-          micStream.getTracks().forEach(t => t.stop());
-          micStream = null;
-        }
-        statusText.innerHTML = 'Activa el micrófono para continuar';
-      }
-    });
+    if (!enterBtn || !overlay) return;
     
     // Enter button → go to the radio
     enterBtn.addEventListener('click', () => {
-      // Ocultar la pantalla inmediatamente, pase lo que pase
+      // Ocultar la pantalla inmediatamente
       overlay.classList.add('hidden');
       
       try {

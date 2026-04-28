@@ -316,23 +316,10 @@
   <!-- Activation Overlay -->
   <div class="activation-overlay" id="activationOverlay">
     <div class="title">📡 CEL-RADIO</div>
-    <div class="activation-card">
-      <div class="activation-row">
-        <div class="activation-label">
-          <span style="font-size:24px">🎤</span>
-          <div>
-            <div style="font-weight:700;color:#fff;font-size:15px">Micrófono</div>
-            <div style="font-size:12px;color:#94a3b8">Necesario para hablar</div>
-          </div>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="micToggle">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="activation-status" id="activationStatus">Activa el micrófono para continuar</div>
-      <button class="activation-enter-btn" id="btnEnterRadio" onclick="document.getElementById('activationOverlay').style.display='none'">ENTRAR</button>
-    </div>
+    <button class="activate-btn" id="btnEnterRadio" onclick="document.getElementById('activationOverlay').style.display='none'">
+      <span class="big-icon">🎙️</span>
+      <span>ENTRAR<br>AL RADIO</span>
+    </button>
   </div>
 
   <div class="radio-app" id="radioApp">
