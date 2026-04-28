@@ -102,43 +102,32 @@
     const btn = document.getElementById('btnActivateRadio');
     const statusText = document.getElementById('activationStatus');
     
-    if (!overlay || !btn) {
-      // Fallback: if no overlay exists, just request mic
-      requestMicrophone();
-      return;
-    }
+    if (!overlay || !btn) return;
     
-    btn.addEventListener('click', async () => {
-      statusText.textContent = '⏳ Solicitando permiso de micrófono...';
-      btn.style.opacity = '0.6';
-      btn.disabled = true;
+    btn.addEventListener('click', () => {
+      // This click gesture unlocks AudioContext on iOS/Android
+      unlockAudioContext();
+      statusText.innerHTML = '✅ ¡Radio activado!';
       
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        statusText.textContent = '✅ ¡Micrófono activado!';
-        
-        // Unlock AudioContext with this user gesture
-        unlockAudioContext();
-        
-        // Hide overlay after brief success animation
-        setTimeout(() => {
-          overlay.classList.add('hidden');
-        }, 600);
-      } catch (err) {
-        console.error("Microphone denied:", err);
-        statusText.textContent = '❌ Permiso denegado. Activa el micrófono en ajustes de tu navegador y recarga.';
-        btn.style.opacity = '1';
-        btn.disabled = false;
-      }
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 400);
     });
   }
 
   async function requestMicrophone() {
+    if (micStream) return; // Already have it
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true, 
+          noiseSuppression: true,
+          autoGainControl: true 
+        } 
+      });
     } catch (err) {
       console.warn("Microphone access denied or error:", err);
-      showToast("⚠️ Activa el permiso del micrófono");
+      micStream = null;
     }
   }
 
@@ -461,17 +450,23 @@
   async function startTransmit() {
     if (isTransmitting) return;
     
-    unlockAudioContext(); // Ensure it's unlocked when PTT is pressed
+    unlockAudioContext();
 
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
       return;
     }
     
+    // Request mic on first PTT press (user gesture = most compatible)
     if (!micStream) {
-      showToast('⏳ Solicitando permiso de micrófono...');
+      showToast('🎤 Permitir micrófono para hablar...');
       await requestMicrophone();
-      if (!micStream) return;
+      if (!micStream) {
+        showToast('❌ Sin micrófono. Abre en Safari/Chrome y permite el micrófono.');
+        return;
+      }
+      showToast('✅ Micrófono listo. ¡Presiona de nuevo para hablar!');
+      return; // Let user press again now that mic is ready
     }
 
     if (isChannelLocked) {
