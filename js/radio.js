@@ -112,10 +112,10 @@
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000
+          autoGainControl: true
         }
       });
+      console.log('[Mic] Micrófono activado correctamente');
     } catch (err) {
       console.warn("Microphone access denied or error:", err);
       showToast("⚠️ Activa el permiso del micrófono");
@@ -434,11 +434,15 @@
       mediaRecorder.onstop = () => {
         if (chunks.length > 0 && socket && currentRoom) {
           const audioBlob = new Blob(chunks, { type: mimeType });
+          console.log(`[PTT] Enviando audio: ${audioBlob.size} bytes, tipo: ${mimeType}, sala: ${currentRoom}`);
           socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
+        } else {
+          console.warn('[PTT] No se envió audio:', { chunks: chunks.length, socket: !!socket, room: currentRoom });
         }
       };
       
       mediaRecorder.start(); // Sin timeslice = blob completo al detener
+      console.log(`[PTT] Grabando con: ${mimeType}`);
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
