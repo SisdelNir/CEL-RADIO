@@ -637,7 +637,8 @@
       startVAD();
     }
     
-    // GRABAR EN CICLOS DE 2 SEGUNDOS (cada blob es completo y decodificable)
+    // GRABAR EN CICLOS CORTOS (cada blob es completo y decodificable)
+    const CYCLE_MS = 1000; // 1 segundo por ciclo = baja latencia
     const sender = {
       name: loggedInUser.nombre || 'Piloto',
       initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
@@ -660,22 +661,21 @@
             socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
           }
           // Siguiente ciclo inmediato
-          if (isTransmitting) setTimeout(recordCycle, 30);
+          if (isTransmitting) setTimeout(recordCycle, 20);
         };
         
         mediaRecorder.start();
-        // Cortar cada 2 segundos para enviar blob completo
         setTimeout(() => {
           if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
           }
-        }, 2000);
+        }, CYCLE_MS);
       } catch (e) {
         console.warn('Error starting MediaRecorder cycle:', e);
       }
     }
     recordCycle();
-    console.log('[PTT] Grabando en ciclos de 2s');
+    console.log('[PTT] Grabando en ciclos de ' + CYCLE_MS + 'ms');
   }
 
   function stopTransmit(abort) {
