@@ -142,14 +142,19 @@ io.on('connection', (socket) => {
   socket.on('join_channel', (data) => {
     const { channelId, empresaId, userName, tipo } = data;
     
-    // Si estaba en otro canal, salir y actualizar conteo
+    // SALIR de TODOS los canales de voz anteriores (canal_ y private_)
+    const roomsToLeave = [];
     for (const room of socket.rooms) {
-      if (room !== socket.id && !room.includes('_user_')) {
-        socket.leave(room);
-        const prevCount = io.sockets.adapter.rooms.get(room)?.size || 0;
-        io.to(room).emit('channel_user_count', { room, count: prevCount });
+      if (room !== socket.id && (room.includes('_canal_') || room.includes('private_'))) {
+        roomsToLeave.push(room);
       }
     }
+    roomsToLeave.forEach(room => {
+      socket.leave(room);
+      const prevCount = io.sockets.adapter.rooms.get(room)?.size || 0;
+      io.to(room).emit('channel_user_count', { room, count: prevCount });
+      console.log(`[Socket] ${userName} SALIÓ de ${room}`);
+    });
 
     const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
@@ -226,8 +231,12 @@ io.on('connection', (socket) => {
   // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
     const { room, audioBlob, sender, mimeType } = data;
-    // Retransmitir el audio a todos los demás en el canal
-    socket.to(room).emit('receive_voice', { audioBlob, sender, mimeType });
+    // SOLO retransmitir si el emisor está realmente en ese room
+    if (socket.rooms.has(room)) {
+      socket.to(room).emit('receive_voice', { audioBlob, sender, mimeType });
+    } else {
+      console.warn(`[Socket] BLOQUEADO: ${sender.name} intentó transmitir a ${room} pero no está en ese canal`);
+    }
   });
 
   socket.on('disconnect', () => {
