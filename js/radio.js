@@ -79,6 +79,11 @@
   let isHandsFreeMode = false;
   let handsFreeRecorder = null;
 
+  // Arbitration state
+  let speakGranted = false;
+  let transmitTimeout = null;
+  const MAX_LOCAL_SPEAK = 15000; // 15 segundos
+
   // AudioContext for playback
   let globalAudioCtx = null;
 
@@ -199,6 +204,49 @@
           console.warn('Audio fallback also failed:', fallbackErr);
           hideSpeaker();
         }
+      }
+    });
+    
+    // ====== ARBITRAJE DE VOZ (respuestas del servidor) ======
+    socket.on('SPEAK_GRANTED', (data) => {
+      console.log('[Arbitraje] GRANTED recibido');
+      if (isTransmitting) {
+        speakGranted = true;
+        beginRecording();
+      }
+    });
+    
+    socket.on('SPEAK_DENIED', (data) => {
+      console.log('[Arbitraje] DENIED:', data.occupiedBy);
+      showToast(`⏳ ${data.occupiedBy} está hablando`);
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      // Resetear el botón PTT
+      isTransmitting = false;
+      speakGranted = false;
+      const btn = document.getElementById('pttBtn');
+      btn.classList.remove('active');
+      document.getElementById('pttLabel').textContent = 'HABLAR';
+      document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
+      hideSpeaker();
+    });
+    
+    socket.on('SPEAK_TIMEOUT', (data) => {
+      console.log('[Arbitraje] TIMEOUT del servidor');
+      showToast('⏱️ Tiempo máximo alcanzado (15s)');
+      stopTransmit(false);
+    });
+    
+    socket.on('SOMEONE_SPEAKING', (data) => {
+      // Alguien más empezó a hablar — mostrar indicador
+      if (!isTransmitting) {
+        showSpeaker(data.speakerName, data.speakerName.slice(0,2).toUpperCase(), false);
+      }
+    });
+    
+    socket.on('SPEAK_RELEASED', (data) => {
+      // El canal fue liberado
+      if (!isTransmitting) {
+        hideSpeaker();
       }
     });
   }
@@ -406,18 +454,38 @@
     }
 
     isTransmitting = true;
+    speakGranted = false;
 
     const btn = document.getElementById('pttBtn');
     btn.classList.add('active');
+    document.getElementById('pttLabel').textContent = 'SOLICITANDO...';
+    document.getElementById('pttHint').textContent = 'Esperando turno del servidor';
+
+    // Solicitar turno al servidor
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    socket.emit('REQUEST_TO_SPEAK', {
+      room: currentRoom,
+      userName: loggedInUser.nombre || 'Piloto',
+      userRole: loggedInUser.rol || 'piloto'
+    });
+  }
+
+  // Esta función se llama SOLO cuando el servidor confirma SPEAK_GRANTED
+  function beginRecording() {
     document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
     document.getElementById('pttHint').textContent = 'Suelta para terminar';
-
     showSpeaker('TÚ', '🎙️', true);
     if (navigator.vibrate) navigator.vibrate(50);
 
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
     
-    // ── Iniciar MediaRecorder — Blob completo al soltar (compatible con todos los navegadores) ──
+    // Timeout local de seguridad (15s)
+    clearTimeout(transmitTimeout);
+    transmitTimeout = setTimeout(() => {
+      showToast('⏱️ Tiempo máximo de transmisión (15s)');
+      stopTransmit(false);
+    }, MAX_LOCAL_SPEAK);
+    
     try {
       mediaRecorder = new MediaRecorder(micStream);
       const chunks = [];
@@ -436,21 +504,21 @@
           const audioBlob = new Blob(chunks, { type: mimeType });
           console.log(`[PTT] Enviando audio: ${audioBlob.size} bytes, tipo: ${mimeType}, sala: ${currentRoom}`);
           socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
-        } else {
-          console.warn('[PTT] No se envió audio:', { chunks: chunks.length, socket: !!socket, room: currentRoom });
         }
       };
       
-      mediaRecorder.start(); // Sin timeslice = blob completo al detener
+      mediaRecorder.start();
       console.log(`[PTT] Grabando con: ${mediaRecorder.mimeType}`);
     } catch (e) {
-      console.warn("Error starting MediaRecorder:", e);
+      console.warn('Error starting MediaRecorder:', e);
     }
   }
 
   function stopTransmit(abort) {
     if (!isTransmitting && !abort) return;
     isTransmitting = false;
+    speakGranted = false;
+    clearTimeout(transmitTimeout);
 
     const btn = document.getElementById('pttBtn');
     btn.classList.remove('active');
@@ -462,6 +530,11 @@
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       if (abort) mediaRecorder.onstop = null;
       mediaRecorder.stop();
+    }
+
+    // Liberar turno en el servidor
+    if (socket && currentRoom) {
+      socket.emit('RELEASE_SPEAK', { room: currentRoom });
     }
 
     if (navigator.vibrate) navigator.vibrate(30);

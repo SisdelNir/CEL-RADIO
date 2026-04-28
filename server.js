@@ -12,6 +12,21 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e8 // Allow large audio buffers if needed
 });
 
+// ====== VOICE ARBITRATION SERVICE ======
+// estado_voz: Map<roomName, { speakerId, speakerName, startedAt, timeout }>
+const estado_voz = new Map();
+const MAX_SPEAK_TIME = 15000; // 15 segundos máximo de transmisión
+
+function releaseSpeak(room, reason) {
+  const state = estado_voz.get(room);
+  if (!state) return;
+  clearTimeout(state.timeout);
+  estado_voz.delete(room);
+  // Notificar a todos en la sala que el canal está libre
+  io.to(room).emit('SPEAK_RELEASED', { room, speakerName: state.speakerName, reason });
+  console.log(`[Arbitraje] Canal ${room} LIBERADO (${reason}) — era ${state.speakerName}`);
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -164,7 +179,49 @@ io.on('connection', (socket) => {
     console.log(`[Socket] Usuario ${userId} cambió su estado a: ${isOnline ? 'Visible' : 'Oculto'}`);
   });
 
-  // Cuando un usuario transmite voz (micro-chunks en tiempo real)
+  // ====== ARBITRAJE DE VOZ ======
+  socket.on('REQUEST_TO_SPEAK', (data) => {
+    const { room, userName, userRole } = data;
+    const current = estado_voz.get(room);
+    
+    if (!current) {
+      // Canal libre → conceder turno
+      const timeout = setTimeout(() => {
+        releaseSpeak(room, 'TIMEOUT');
+        socket.emit('SPEAK_TIMEOUT', { room });
+      }, MAX_SPEAK_TIME);
+      
+      estado_voz.set(room, {
+        speakerId: socket.id,
+        speakerName: userName,
+        speakerRole: userRole,
+        startedAt: Date.now(),
+        timeout
+      });
+      
+      socket.emit('SPEAK_GRANTED', { room });
+      socket.to(room).emit('SOMEONE_SPEAKING', { room, speakerName: userName });
+      console.log(`[Arbitraje] GRANTED → ${userName} en ${room}`);
+    } else if (current.speakerId === socket.id) {
+      // Ya tiene el turno, confirmar de nuevo
+      socket.emit('SPEAK_GRANTED', { room });
+    } else {
+      // Canal ocupado
+      const elapsed = Math.round((Date.now() - current.startedAt) / 1000);
+      socket.emit('SPEAK_DENIED', { room, occupiedBy: current.speakerName, elapsed });
+      console.log(`[Arbitraje] DENIED → ${userName} (ocupa ${current.speakerName}, ${elapsed}s)`);
+    }
+  });
+  
+  socket.on('RELEASE_SPEAK', (data) => {
+    const { room } = data;
+    const current = estado_voz.get(room);
+    if (current && current.speakerId === socket.id) {
+      releaseSpeak(room, 'MANUAL');
+    }
+  });
+
+  // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
     const { room, audioBlob, sender, mimeType } = data;
     // Retransmitir el audio a todos los demás en el canal
@@ -172,6 +229,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Liberar cualquier canal que este usuario tenga tomado
+    for (const [room, state] of estado_voz.entries()) {
+      if (state.speakerId === socket.id) {
+        releaseSpeak(room, 'DISCONNECT');
+      }
+    }
     // Actualizar conteo en la sala de voz
     if (socket.currentVoiceRoom) {
       const count = io.sockets.adapter.rooms.get(socket.currentVoiceRoom)?.size || 0;
