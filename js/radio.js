@@ -75,6 +75,10 @@
   let audioChunks = [];
   let currentRoom = null;
   let micStream = null;
+  
+  let isChannelLocked = false;
+  let lockedByUser = '';
+  let isHandsFreeMode = false;
 
   // Speech Recognition state
   let recognition = null;
@@ -139,6 +143,37 @@
       updateChannelDisplay();
       showToast(`📞 Llamada entrante de ${caller.nombre}`);
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    });
+    
+    // Escuchar Half-Duplex
+    socket.on('channel_locked', (data) => {
+      isChannelLocked = true;
+      lockedByUser = data.user;
+      
+      const btn = document.getElementById('pttBtn');
+      if (btn) {
+        btn.style.background = 'linear-gradient(145deg, #2a2a2a, #1a1a1a)';
+        btn.style.borderColor = '#444';
+        const label = document.getElementById('pttLabel');
+        const hint = document.getElementById('pttHint');
+        if (label) { label.textContent = 'OCUPADO'; label.style.color = '#ff4444'; }
+        if (hint) { hint.innerHTML = `<span style="color:#ff4444">⚠️ ${lockedByUser.toUpperCase()} HABLANDO</span>`; }
+      }
+    });
+
+    socket.on('channel_unlocked', () => {
+      isChannelLocked = false;
+      lockedByUser = '';
+      
+      const btn = document.getElementById('pttBtn');
+      if (btn) {
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        const label = document.getElementById('pttLabel');
+        const hint = document.getElementById('pttHint');
+        if (label) { label.textContent = 'HABLAR'; label.style.color = ''; }
+        if (hint) { hint.textContent = 'Mantener presionado para hablar'; }
+      }
     });
     
     let globalAudioCtx = null;
@@ -322,12 +357,11 @@
     recognition.onend = function() {
       isListening = false;
       document.getElementById('voiceIndicator').style.display = 'none';
-      // Desactivado temporalmente el reinicio infinito para evitar el "bip" molesto del sistema en celulares
-      /*
-      if (currentChannel || currentPrivateUser) {
+      
+      // Solo reiniciar si el Modo Manos Libres está activado
+      if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
         try { recognition.start(); } catch(e) {}
       }
-      */
     };
 
     try {
@@ -381,7 +415,18 @@
       return;
     }
 
+    if (isChannelLocked) {
+      showToast(`⚠️ ESPERA QUE ${lockedByUser.toUpperCase()} TERMINE`);
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+      return;
+    }
+
     isTransmitting = true;
+
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    if (socket && currentRoom) {
+      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' });
+    }
 
     const btn = document.getElementById('pttBtn');
     btn.classList.add('active');
@@ -432,6 +477,10 @@
   function stopTransmit() {
     if (!isTransmitting) return;
     isTransmitting = false;
+    
+    if (socket && currentRoom) {
+      socket.emit('unlock_channel', { room: currentRoom });
+    }
 
     clearTimeout(handsFreeTimer);
 
@@ -507,6 +556,27 @@
         sessionStorage.removeItem('cel_user');
         sessionStorage.removeItem('cel_empresa');
         window.location.href = 'index.html';
+      });
+    }
+
+    // Hands Free
+    const btnHandsFree = document.getElementById('btnHandsFree');
+    if (btnHandsFree) {
+      btnHandsFree.addEventListener('click', () => {
+        isHandsFreeMode = !isHandsFreeMode;
+        if (isHandsFreeMode) {
+          btnHandsFree.classList.add('active');
+          btnHandsFree.style.color = 'var(--accent)';
+          showToast('🎙️ Modo Manos Libres ACTIVADO');
+          if (currentChannel || currentPrivateUser) {
+            startVoiceRecognition();
+          }
+        } else {
+          btnHandsFree.classList.remove('active');
+          btnHandsFree.style.color = '';
+          showToast('🛑 Modo Manos Libres DESACTIVADO');
+          stopVoiceRecognition();
+        }
       });
     }
   }

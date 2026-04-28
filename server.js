@@ -155,6 +155,19 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('user_status_changed', { userId, isOnline });
     console.log(`[Socket] Usuario ${userId} cambió su estado a: ${isOnline ? 'Visible' : 'Oculto'}`);
   });
+  // Half-Duplex: Bloqueo de Canal
+  socket.on('lock_channel', (data) => {
+    const { room, user } = data;
+    socket.to(room).emit('channel_locked', { user });
+    console.log(`[Socket] Canal bloqueado en ${room} por ${user}`);
+  });
+
+  // Half-Duplex: Desbloqueo de Canal
+  socket.on('unlock_channel', (data) => {
+    const { room } = data;
+    socket.to(room).emit('channel_unlocked');
+    console.log(`[Socket] Canal liberado en ${room}`);
+  });
 
   // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
