@@ -161,11 +161,14 @@
       lockedByUser = data.user || 'Alguien';
       // Si yo estoy transmitiendo y me llega un lock de otro, abortar
       if (isTransmitting) stopTransmit(true);
+      // Mostrar quién está hablando en el área central
+      showSpeaker(data.user || 'Alguien', '📡', false);
     });
     
     socket.on('channel_unlocked', () => {
       isChannelLocked = false;
       lockedByUser = '';
+      hideSpeaker();
     });
     
     // Conteo de usuarios en el canal
@@ -178,10 +181,16 @@
     });
     
     // ── Recibir audio y reproducir inmediatamente ──
+    let speakerTimeout = null;
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
       showSpeaker(sender.name, sender.initials, false);
+      
+      // Safety timeout: ocultar speaker después de 10s máx
+      clearTimeout(speakerTimeout);
+      speakerTimeout = setTimeout(() => hideSpeaker(), 10000);
+      
       try {
         if (!globalAudioCtx) globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (globalAudioCtx.state === 'suspended') await globalAudioCtx.resume();
@@ -191,11 +200,25 @@
         const source = globalAudioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(globalAudioCtx.destination);
-        source.onended = () => hideSpeaker();
+        source.onended = () => { clearTimeout(speakerTimeout); hideSpeaker(); };
         source.start(0);
       } catch (err) {
-        console.warn('Audio playback error:', err);
-        hideSpeaker();
+        console.warn('AudioContext decode failed, trying <audio> fallback:', err);
+        // Fallback: usar el elemento <audio> persistente
+        try {
+          const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
+          const url = URL.createObjectURL(blob);
+          const liveAudio = document.getElementById('liveAudio');
+          if (liveAudio) {
+            liveAudio.src = url;
+            liveAudio.onended = () => { clearTimeout(speakerTimeout); hideSpeaker(); URL.revokeObjectURL(url); };
+            liveAudio.onerror = () => { clearTimeout(speakerTimeout); hideSpeaker(); URL.revokeObjectURL(url); };
+            await liveAudio.play();
+          }
+        } catch (fallbackErr) {
+          console.warn('Audio fallback also failed:', fallbackErr);
+          hideSpeaker();
+        }
       }
     });
   }
@@ -329,36 +352,45 @@
   
   function startHandsFreeStream() {
     if (!micStream || !socket || !currentRoom) return;
-    try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
-      handsFreeRecorder = new MediaRecorder(micStream, { mimeType });
-      const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-      const sender = {
-        name: loggedInUser.nombre || 'Piloto',
-        initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-      };
-      
-      handsFreeRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socket && currentRoom) {
-          socket.emit('transmit_voice', {
-            room: currentRoom,
-            audioBlob: event.data,
-            mimeType: handsFreeRecorder.mimeType,
-            sender
-          });
-        }
-      };
-      handsFreeRecorder.start(500); // chunks cada 500ms
-    } catch (e) {
-      console.warn('HandsFree recorder error:', e);
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    const sender = {
+      name: loggedInUser.nombre || 'Piloto',
+      initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+    };
+    
+    function recordCycle() {
+      if (!isHandsFreeMode || !micStream) return;
+      try {
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
+        handsFreeRecorder = new MediaRecorder(micStream, { mimeType });
+        const chunks = [];
+        
+        handsFreeRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        handsFreeRecorder.onstop = () => {
+          if (chunks.length > 0 && socket && currentRoom) {
+            const blob = new Blob(chunks, { type: mimeType });
+            socket.emit('transmit_voice', { room: currentRoom, audioBlob: blob, mimeType, sender });
+          }
+          // Iniciar siguiente ciclo
+          if (isHandsFreeMode) setTimeout(recordCycle, 50);
+        };
+        handsFreeRecorder.start();
+        // Detener después de 2 segundos para enviar audio completo y decodificable
+        setTimeout(() => {
+          if (handsFreeRecorder && handsFreeRecorder.state === 'recording') handsFreeRecorder.stop();
+        }, 2000);
+      } catch (e) {
+        console.warn('HandsFree recorder error:', e);
+      }
     }
+    recordCycle();
   }
   
   function stopHandsFreeStream() {
     if (handsFreeRecorder && handsFreeRecorder.state === 'recording') {
       handsFreeRecorder.stop();
-      handsFreeRecorder = null;
     }
+    handsFreeRecorder = null;
   }
 
   // ============ PTT LOGIC (Real Audio) ============
@@ -427,27 +459,28 @@
       });
     }
     
-    // ── Iniciar MediaRecorder con micro-chunks de 200ms ──
+    // ── Iniciar MediaRecorder — Blob completo al soltar (compatible con todos los navegadores) ──
     try {
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
       mediaRecorder = new MediaRecorder(micStream, { mimeType });
+      const chunks = [];
       const sender = {
         name: loggedInUser.nombre || 'Piloto',
         initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
       };
       
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0 && socket && currentRoom) {
-          socket.emit('transmit_voice', {
-            room: currentRoom,
-            audioBlob: event.data,
-            mimeType: mediaRecorder.mimeType,
-            sender
-          });
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        if (chunks.length > 0 && socket && currentRoom) {
+          const audioBlob = new Blob(chunks, { type: mimeType });
+          socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
         }
       };
       
-      mediaRecorder.start(200); // ← Micro-chunks cada 200ms = latencia mínima
+      mediaRecorder.start(); // Sin timeslice = blob completo al detener
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
