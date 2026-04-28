@@ -609,43 +609,34 @@
 
   function renderChannels() {
     const list = document.getElementById('channelList');
+    list.innerHTML = '';
+    
     if (channels.length === 0) {
-      list.innerHTML = `
-        <div style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
-          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📡</div>
-          <h3 style="color: #fff; margin-bottom: 8px;">Sin Canales</h3>
-          <p>No hay canales configurados para tu empresa.</p>
-        </div>
-      `;
+      list.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: #64748b;"><div style="font-size:48px; margin-bottom:16px;">📡</div><h3 style="color:#fff;">Sin Canales</h3><p>No hay canales configurados.</p></div>';
       return;
     }
     
-    list.innerHTML = channels.map(ch => `
-      <li class="channel-item ${(currentChannel && ch.id === currentChannel.id) ? 'active' : ''}" 
-          data-id="${ch.id}" 
-          onclick="this.dataset.clicked='1'" 
-          style="cursor:pointer; -webkit-tap-highlight-color: rgba(0,212,255,0.3);">
-        <div class="ch-icon">${ch.icon}</div>
-        <div>
-          <div class="ch-name">${ch.name}</div>
-          <div class="ch-users">${ch.users} conectados</div>
-        </div>
-      </li>
-    `).join('');
-
-    // Delegación de eventos en el padre (funciona en iOS Safari)
-    list.onclick = function(e) {
-      const item = e.target.closest('.channel-item');
-      if (!item) return;
-      const ch = channels.find(x => String(x.id) === item.dataset.id);
-      if (ch) {
+    channels.forEach(ch => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'channel-item' + ((currentChannel && ch.id === currentChannel.id) ? ' active' : '');
+      btn.style.cssText = 'display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:12px; cursor:pointer; width:100%; border:1px solid rgba(255,255,255,0.06); background:rgba(30,36,50,0.6); color:#fff; font-family:inherit; margin-bottom:8px; text-align:left;';
+      if (currentChannel && ch.id === currentChannel.id) {
+        btn.style.background = 'rgba(0,212,255,0.15)';
+        btn.style.borderColor = 'rgba(0,212,255,0.4)';
+      }
+      btn.innerHTML = `<div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${ch.icon}</div><div><div style="font-weight:600;font-size:15px;">${ch.name}</div><div style="font-size:12px;color:#94a3b8;">${ch.users} conectados</div></div>`;
+      
+      btn.addEventListener('click', function() {
         currentChannel = ch;
         currentPrivateUser = null;
         updateChannelDisplay();
         document.getElementById('channelModal').classList.remove('active');
-        showToast(`📻 Conectado a Canal: ${ch.name}`);
-      }
-    };
+        showToast('📻 Conectado a Canal: ' + ch.name);
+      });
+      
+      list.appendChild(btn);
+    });
   }
 
   function renderUsers() {
