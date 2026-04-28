@@ -109,22 +109,26 @@
     toggle.addEventListener('change', async () => {
       if (toggle.checked) {
         statusText.innerHTML = '⏳ Activando micrófono...';
+        enterBtn.disabled = false; // Always enable ENTRAR
         
         unlockAudioContext();
         
+        // Race: getUserMedia vs 3-second timeout
+        const micPromise = navigator.mediaDevices.getUserMedia({ 
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+        });
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 3000)
+        );
+        
         try {
-          micStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-          });
-          statusText.innerHTML = '<span style="color:#10b981">✅ Micrófono activado</span>';
-          enterBtn.disabled = false;
+          micStream = await Promise.race([micPromise, timeoutPromise]);
+          statusText.innerHTML = '<span style="color:#10b981">✅ Micrófono activado — Presiona ENTRAR</span>';
         } catch (err) {
-          console.warn('Mic denied:', err);
-          toggle.checked = false;
-          statusText.innerHTML = '<span style="color:#ff6b6b">❌ Permiso denegado. Abre en Safari/Chrome directamente.</span>';
+          console.warn('Mic issue:', err);
+          statusText.innerHTML = '<span style="color:#fbbf24">⚠️ Micrófono pendiente — Puedes entrar</span>';
         }
       } else {
-        // User turned off the toggle
         if (micStream) {
           micStream.getTracks().forEach(t => t.stop());
           micStream = null;
@@ -136,6 +140,7 @@
     
     // Enter button → go to the radio
     enterBtn.addEventListener('click', () => {
+      unlockAudioContext();
       overlay.classList.add('hidden');
     });
   }
