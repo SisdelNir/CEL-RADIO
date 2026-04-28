@@ -351,7 +351,12 @@
     }
   }
 
-  // ============ HANDS-FREE MODE (Continuous Streaming) ============
+  // Hands-free voice recognition state
+  let recognition = null;
+  let isListening = false;
+  let handsFreeTimer = null;
+
+  // ============ HANDS-FREE MODE (Wake Word: "Atento, Atento") ============
   function setupHandsFree() {
     const btn = document.getElementById('btnHandsFree');
     if (!btn) return;
@@ -365,59 +370,86 @@
       btn.classList.toggle('active', isHandsFreeMode);
       
       if (isHandsFreeMode) {
-        showToast('🎙️ Micrófono Abierto ACTIVADO');
+        showToast('🎙️ Micrófono Abierto ACTIVADO — Di "Atento, Atento" para hablar');
         document.getElementById('voiceIndicator').style.display = 'block';
-        document.getElementById('voiceIndicator').textContent = '🎙️ Micrófono Abierto activo — micrófono abierto';
-        startHandsFreeStream();
+        document.getElementById('voiceIndicator').textContent = '🎙️ Escuchando... di "Atento, Atento"';
+        startVoiceRecognition();
       } else {
         showToast('🔇 Micrófono Abierto DESACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'none';
-        stopHandsFreeStream();
+        stopVoiceRecognition();
       }
     });
   }
   
-  function startHandsFreeStream() {
-    if (!micStream || !socket || !currentRoom) return;
-    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    const sender = {
-      name: loggedInUser.nombre || 'Piloto',
-      initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-    };
+  function startVoiceRecognition() {
+    if (isListening) return;
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      showToast('⚠️ Tu navegador no soporta reconocimiento de voz');
+      return;
+    }
     
-    function recordCycle() {
-      if (!isHandsFreeMode || !micStream) return;
-      try {
-        handsFreeRecorder = new MediaRecorder(micStream);
-        const mimeType = handsFreeRecorder.mimeType || 'audio/webm';
-        const chunks = [];
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'es-ES';
+
+    recognition.onstart = function() {
+      isListening = true;
+      document.getElementById('voiceIndicator').style.display = 'block';
+    };
+
+    recognition.onresult = function(event) {
+      if (isTransmitting) return;
+      
+      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+      
+      // Buscar frase "atento atento"
+      if (transcript.includes('atento atento') || transcript.includes('atento, atento')) {
+        // ACTIVAR TRANSMISIÓN
+        startTransmit();
+        showToast('🎙️ Transmisión manos libres activada');
         
-        handsFreeRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-        handsFreeRecorder.onstop = () => {
-          if (chunks.length > 0 && socket && currentRoom) {
-            const blob = new Blob(chunks, { type: mimeType });
-            socket.emit('transmit_voice', { room: currentRoom, audioBlob: blob, mimeType, sender });
+        // Auto-cerrar después de 15 segundos
+        clearTimeout(handsFreeTimer);
+        handsFreeTimer = setTimeout(() => {
+          if (isTransmitting) {
+            stopTransmit();
+            showToast('🛑 Transmisión manos libres terminada (15s)');
           }
-          // Iniciar siguiente ciclo
-          if (isHandsFreeMode) setTimeout(recordCycle, 50);
-        };
-        handsFreeRecorder.start();
-        // Detener después de 2 segundos para enviar audio completo y decodificable
-        setTimeout(() => {
-          if (handsFreeRecorder && handsFreeRecorder.state === 'recording') handsFreeRecorder.stop();
-        }, 2000);
-      } catch (e) {
-        console.warn('HandsFree recorder error:', e);
+        }, 15000);
       }
+    };
+
+    recognition.onerror = function(event) {
+      console.warn('Speech recognition error:', event.error);
+    };
+
+    recognition.onend = function() {
+      isListening = false;
+      // Reiniciar si el modo sigue activo
+      if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error('Error starting recognition:', e);
     }
-    recordCycle();
   }
-  
-  function stopHandsFreeStream() {
-    if (handsFreeRecorder && handsFreeRecorder.state === 'recording') {
-      handsFreeRecorder.stop();
+
+  function stopVoiceRecognition() {
+    if (recognition) {
+      recognition.onend = null; // No reiniciar
+      recognition.stop();
+      recognition = null;
+      isListening = false;
+      document.getElementById('voiceIndicator').style.display = 'none';
     }
-    handsFreeRecorder = null;
+    clearTimeout(handsFreeTimer);
   }
 
   // ============ PTT LOGIC (Real Audio) ============
