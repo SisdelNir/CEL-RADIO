@@ -195,9 +195,80 @@
       border-top: 1px solid rgba(255,255,255,0.08);
       border-radius: 20px 20px 0 0;
     }
+
+    /* Activation Overlay */
+    .activation-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(160deg, #0a0e1a 0%, #141824 50%, #1a1228 100%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 40px;
+    }
+    .activation-overlay.hidden { display: none; }
+    .activation-overlay .title { font-size: 22px; font-weight: 900; color: #fff; text-align: center; }
+    .activation-overlay .subtitle { font-size: 14px; color: #94a3b8; text-align: center; line-height: 1.6; max-width: 300px; }
+    .activation-overlay .activate-btn {
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      border: 3px solid rgba(16,185,129,0.4);
+      background: linear-gradient(145deg, #10b981, #059669);
+      box-shadow: 0 0 60px rgba(16,185,129,0.3);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .activation-overlay .activate-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 80px rgba(16,185,129,0.5);
+    }
+    .activation-overlay .activate-btn .big-icon { font-size: 52px; }
+    .activation-overlay .status-text { font-size: 13px; color: #64748b; text-align: center; }
+
+    /* Channel Users Modal */
+    .channel-users-list { list-style: none; padding: 10px 0; }
+    .channel-users-list li {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: #e2e8f0;
+      font-weight: 600;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .channel-users-list li .user-dot {
+      width: 10px; height: 10px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--green);
+    }
   </style>
 </head>
 <body>
+  <!-- Activation Overlay (Permiso de Micrófono Obligatorio) -->
+  <div class="activation-overlay" id="activationOverlay">
+    <div class="title">📡 CEL-RADIO</div>
+    <div class="subtitle">Para usar tu radio, necesitas activar el micrófono de tu dispositivo. Presiona el botón verde.</div>
+    <button class="activate-btn" id="btnActivateRadio">
+      <span class="big-icon">🎙️</span>
+      <span>ACTIVAR<br>RADIO</span>
+    </button>
+    <div class="status-text" id="activationStatus">Esperando activación...</div>
+  </div>
+
   <div class="radio-app" id="radioApp">
 
     <!-- Header -->
@@ -302,6 +373,15 @@
       <button class="btn btn-ghost" id="cancelEmergency" style="width:100%; margin-top:14px; padding:14px; color:#94a3b8;">
         Cancelar
       </button>
+    </div>
+  </div>
+
+  <!-- Channel Users Modal -->
+  <div class="modal-overlay" id="channelUsersModal">
+    <div class="modal-content">
+      <div class="modal-handle"></div>
+      <div class="modal-title">👥 Usuarios en el Canal</div>
+      <ul class="channel-users-list" id="channelUsersList"></ul>
     </div>
   </div>
 

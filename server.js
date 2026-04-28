@@ -109,14 +109,21 @@ app.delete('/api/canales/:id', (req, res) => {
 
 // ================= WEBSOCKETS (VOZ EN TIEMPO REAL) =================
 
+// Tracking de usuarios por sala { roomName: Map<socketId, userName> }
+const roomUsers = {};
+
 io.on('connection', (socket) => {
   console.log(`[Socket] Nuevo cliente conectado: ${socket.id}`);
+
+  // Guardar nombre del usuario para tracking
+  socket.userName = null;
 
   // Registro de frecuencia personal del usuario
   socket.on('register_user', (data) => {
     const { empresaId, userId, userName } = data;
     const personalRoom = `empresa_${empresaId}_user_${userId}`;
     socket.join(personalRoom);
+    socket.userName = userName;
     console.log(`[Socket] Frecuencia personal asignada: ${userName} en ${personalRoom}`);
   });
 
@@ -124,15 +131,39 @@ io.on('connection', (socket) => {
   socket.on('join_channel', (data) => {
     const { channelId, empresaId, userName, tipo } = data;
     
-    // Si estaba en otro canal, salir
+    // Remover del tracking de la sala anterior
     for (const room of socket.rooms) {
-      if (room !== socket.id && !room.includes('_user_')) socket.leave(room); // Evitar salir de la frecuencia personal
+      if (room !== socket.id && !room.includes('_user_')) {
+        if (roomUsers[room]) {
+          roomUsers[room].delete(socket.id);
+          if (roomUsers[room].size === 0) delete roomUsers[room];
+          // Notificar actualización de conteo
+          io.to(room).emit('room_user_count', { count: roomUsers[room] ? roomUsers[room].size : 0 });
+        }
+        socket.leave(room);
+      }
     }
 
     // Si es un canal privado, respetar el nombre exacto. Si es grupo, poner prefijo
     const roomName = tipo === 'privado' ? channelId : `empresa_${empresaId}_canal_${channelId}`;
     socket.join(roomName);
-    console.log(`[Socket] ${userName} se unió a ${roomName}`);
+    socket.userName = userName || socket.userName;
+    
+    // Agregar al tracking de la nueva sala
+    if (!roomUsers[roomName]) roomUsers[roomName] = new Map();
+    roomUsers[roomName].set(socket.id, socket.userName || 'Piloto');
+    
+    // Notificar a todos en la sala el nuevo conteo
+    io.to(roomName).emit('room_user_count', { count: roomUsers[roomName].size });
+    
+    console.log(`[Socket] ${userName} se unió a ${roomName} (${roomUsers[roomName].size} usuarios)`);
+  });
+
+  // Obtener lista de usuarios en el canal actual
+  socket.on('get_channel_users', (data) => {
+    const { room } = data;
+    const usersInRoom = roomUsers[room] ? Array.from(roomUsers[room].values()) : [];
+    socket.emit('channel_users_list', { users: usersInRoom });
   });
 
   // Orden para forzar (jalar) a un usuario a un canal privado
@@ -171,12 +202,23 @@ io.on('connection', (socket) => {
 
   // Cuando un usuario transmite voz
   socket.on('transmit_voice', (data) => {
-    const { room, audioBlob, sender } = data;
+    const { room, audioBlob, sender, mimeType } = data;
     // Retransmitir el audio a todos los demás en el canal
-    socket.to(room).emit('receive_voice', { audioBlob, sender });
+    socket.to(room).emit('receive_voice', { audioBlob, sender, mimeType });
   });
 
   socket.on('disconnect', () => {
+    // Limpiar tracking de salas
+    for (const room in roomUsers) {
+      if (roomUsers[room].has(socket.id)) {
+        roomUsers[room].delete(socket.id);
+        if (roomUsers[room].size === 0) {
+          delete roomUsers[room];
+        } else {
+          io.to(room).emit('room_user_count', { count: roomUsers[room].size });
+        }
+      }
+    }
     console.log(`[Socket] Cliente desconectado: ${socket.id}`);
   });
 });

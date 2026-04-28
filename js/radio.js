@@ -93,6 +93,44 @@
     setupModals();
     setupEmergency();
     setupSocketReceivers();
+    setupActivation();
+  }
+
+  // ============ ACTIVATION OVERLAY ============
+  function setupActivation() {
+    const overlay = document.getElementById('activationOverlay');
+    const btn = document.getElementById('btnActivateRadio');
+    const statusText = document.getElementById('activationStatus');
+    
+    if (!overlay || !btn) {
+      // Fallback: if no overlay exists, just request mic
+      requestMicrophone();
+      return;
+    }
+    
+    btn.addEventListener('click', async () => {
+      statusText.textContent = '⏳ Solicitando permiso de micrófono...';
+      btn.style.opacity = '0.6';
+      btn.disabled = true;
+      
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        statusText.textContent = '✅ ¡Micrófono activado!';
+        
+        // Unlock AudioContext with this user gesture
+        unlockAudioContext();
+        
+        // Hide overlay after brief success animation
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 600);
+      } catch (err) {
+        console.error("Microphone denied:", err);
+        statusText.textContent = '❌ Permiso denegado. Activa el micrófono en ajustes de tu navegador y recarga.';
+        btn.style.opacity = '1';
+        btn.disabled = false;
+      }
+    });
   }
 
   async function requestMicrophone() {
@@ -149,20 +187,26 @@
       isChannelLocked = true;
       lockedByUser = data.user;
       
+      // Mostrar quién habla en el área del speaker
+      const initials = (data.user || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+      showSpeaker(data.user, initials, false);
+      
       const btn = document.getElementById('pttBtn');
       if (btn) {
-        btn.style.background = 'linear-gradient(145deg, #2a2a2a, #1a1a1a)';
-        btn.style.borderColor = '#444';
+        btn.style.background = 'linear-gradient(145deg, #3a1111, #2a0a0a)';
+        btn.style.borderColor = '#ff4444';
         const label = document.getElementById('pttLabel');
         const hint = document.getElementById('pttHint');
         if (label) { label.textContent = 'OCUPADO'; label.style.color = '#ff4444'; }
-        if (hint) { hint.innerHTML = `<span style="color:#ff4444">⚠️ ${lockedByUser.toUpperCase()} HABLANDO</span>`; }
+        if (hint) { hint.innerHTML = `<span style="color:#ff4444;font-size:13px">⚠️ ${lockedByUser.toUpperCase()} HABLANDO</span>`; }
       }
     });
 
     socket.on('channel_unlocked', () => {
       isChannelLocked = false;
       lockedByUser = '';
+      
+      hideSpeaker();
       
       const btn = document.getElementById('pttBtn');
       if (btn) {
@@ -175,6 +219,28 @@
       }
     });
     
+    // Tracking de usuarios en el canal
+    socket.on('room_user_count', (data) => {
+      const countEl = document.getElementById('userCountNum');
+      if (countEl) countEl.textContent = data.count;
+    });
+    
+    // Lista de usuarios en el canal (respuesta)
+    socket.on('channel_users_list', (data) => {
+      const list = document.getElementById('channelUsersList');
+      const modal = document.getElementById('channelUsersModal');
+      if (list && modal) {
+        if (data.users.length === 0) {
+          list.innerHTML = '<li style="color:#94a3b8;justify-content:center;">No hay usuarios conectados</li>';
+        } else {
+          list.innerHTML = data.users.map(name => `
+            <li><div class="user-dot"></div>${name}</li>
+          `).join('');
+        }
+        modal.classList.add('active');
+      }
+    });
+    
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
@@ -182,34 +248,23 @@
       showSpeaker(sender.name, sender.initials, false);
 
       try {
-        if (!globalAudioCtx) {
-          globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (globalAudioCtx.state === 'suspended') {
-          await globalAudioCtx.resume();
-        }
-
         const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
-        const arrayBuffer = await blob.arrayBuffer();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
         
-        globalAudioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-          const source = globalAudioCtx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(globalAudioCtx.destination);
-          
-          source.onended = () => {
-            hideSpeaker();
-          };
-          
-          source.start(0);
-        }, (err) => {
-          console.error("Error decodificando audio (Safari incompatibility):", err);
+        audio.onended = () => {
           hideSpeaker();
-          showToast("⚠️ Formato de audio incompatible recibido");
-        });
-
+          URL.revokeObjectURL(url);
+        };
+        audio.onerror = () => {
+          console.warn("Audio element failed, trying AudioContext fallback");
+          hideSpeaker();
+          URL.revokeObjectURL(url);
+        };
+        
+        await audio.play();
       } catch (err) {
-        console.warn("Audio playback prevent:", err);
+        console.warn("Audio playback error:", err);
         hideSpeaker();
       }
     });
@@ -296,7 +351,7 @@
     } else {
       labelEl.textContent = 'Canal Activo';
       nameEl.textContent = `📻 ${currentChannel.name}`;
-      usersEl.innerHTML = `👥 <span id="userCount">${currentChannel.users}</span> conectados`;
+      usersEl.innerHTML = `<span id="userCount" style="cursor:pointer;text-decoration:underline;color:var(--accent)" onclick="document.dispatchEvent(new CustomEvent('show_channel_users'))">👥 <span id="userCountNum">${currentChannel.users}</span> conectados — Ver</span>`;
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
       if (isHandsFreeMode) startVoiceRecognition();
@@ -333,7 +388,7 @@
       // Buscar frase "atento atento" (ignorando comas u otros signos)
       if (transcript.includes('atento atento') || transcript.includes('atento, atento')) {
         // ACTIVAR MICRÓFONO
-        startTransmit(true);
+        startTransmit();
         showToast('🎙️ Transmisión manos libres activada');
         
         // Cerrar después de 15 segundos
@@ -376,28 +431,26 @@
     }
   }
 
-  let isPttPressed = false;
-
   // ============ PTT LOGIC (Real Audio) ============
   function setupPTT() {
     const btn = document.getElementById('pttBtn');
 
     // Mouse events
-    btn.addEventListener('mousedown', () => { isPttPressed = true; startTransmit(); });
-    btn.addEventListener('mouseup', () => { isPttPressed = false; stopTransmit(); });
-    btn.addEventListener('mouseleave', () => { isPttPressed = false; stopTransmit(); });
+    btn.addEventListener('mousedown', startTransmit);
+    btn.addEventListener('mouseup', stopTransmit);
+    btn.addEventListener('mouseleave', stopTransmit);
 
     // Touch events
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); isPttPressed = true; startTransmit(); });
-    btn.addEventListener('touchend', (e) => { e.preventDefault(); isPttPressed = false; stopTransmit(); });
-    btn.addEventListener('touchcancel', () => { isPttPressed = false; stopTransmit(); });
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startTransmit(); });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); stopTransmit(); });
+    btn.addEventListener('touchcancel', stopTransmit);
 
     // Keyboard (spacebar)
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); isPttPressed = true; startTransmit(); }
+      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); startTransmit(); }
     });
     document.addEventListener('keyup', (e) => {
-      if (e.code === 'Space') { e.preventDefault(); isPttPressed = false; stopTransmit(); }
+      if (e.code === 'Space') { e.preventDefault(); stopTransmit(); }
     });
 
     // Unlock audio context on first interaction (iOS fix)
@@ -405,17 +458,13 @@
     document.body.addEventListener('click', unlockAudioContext, { once: true });
   }
 
-  let isTransmittingVirtual = false;
-
-  async function startTransmit(virtual = false) {
-    if (virtual) isTransmittingVirtual = true;
+  async function startTransmit() {
     if (isTransmitting) return;
     
     unlockAudioContext(); // Ensure it's unlocked when PTT is pressed
 
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
-      isTransmittingVirtual = false;
       return;
     }
     
@@ -423,11 +472,6 @@
       showToast('⏳ Solicitando permiso de micrófono...');
       await requestMicrophone();
       if (!micStream) return;
-      
-      // Si el usuario soltó el botón mientras pedía permiso (y no es manos libres), abortar.
-      if (!isPttPressed && !isTransmittingVirtual) {
-        return;
-      }
     }
 
     if (isChannelLocked) {
@@ -501,12 +545,7 @@
   }
 
   function stopTransmit() {
-    isTransmittingVirtual = false;
-    if (!isTransmitting) {
-      // Si se atascó el MediaRecorder sin estar formalmente "transmitting"
-      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-      return;
-    }
+    if (!isTransmitting) return;
     isTransmitting = false;
     
     if (socket && currentRoom) {
@@ -619,6 +658,21 @@
         }
       });
     }
+
+    // Channel Users modal
+    const channelUsersModal = document.getElementById('channelUsersModal');
+    if (channelUsersModal) {
+      channelUsersModal.addEventListener('click', (e) => {
+        if (e.target === channelUsersModal) channelUsersModal.classList.remove('active');
+      });
+    }
+    
+    // Custom event: show channel users
+    document.addEventListener('show_channel_users', () => {
+      if (socket && currentRoom) {
+        socket.emit('get_channel_users', { room: currentRoom });
+      }
+    });
   }
 
   function renderChannels() {
