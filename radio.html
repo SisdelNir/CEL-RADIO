@@ -158,7 +158,7 @@
     /* Bottom Actions */
     .radio-bottom {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       gap: 10px;
       padding: 0 20px 24px 20px;
       z-index: 10;
@@ -188,6 +188,57 @@
       font-weight: 800;
     }
     .radio-bottom .sos-btn:active { background: #b91c1c; }
+    .radio-bottom .handsfree-btn.active {
+      background: rgba(16, 185, 129, 0.2) !important;
+      border-color: rgba(16, 185, 129, 0.5) !important;
+      color: #10b981 !important;
+    }
+
+    /* Private call stacked names */
+    .private-names {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .private-names .caller-name {
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+    }
+    .private-names .divider-icon {
+      font-size: 14px;
+      color: #64748b;
+    }
+    .private-names .callee-name {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--accent);
+    }
+
+    /* Channel locked warning */
+    .lock-warning {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(220, 38, 38, 0.95);
+      color: #fff;
+      padding: 20px 30px;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 15px;
+      text-align: center;
+      z-index: 1000;
+      animation: fadeInOut 3s forwards;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      10% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      80% { opacity: 1; }
+      100% { opacity: 0; }
+    }
 
     /* Modals */
     .modal-content {
@@ -198,6 +249,9 @@
   </style>
 </head>
 <body>
+  <!-- Reproductor persistente (bypass iOS autoplay) -->
+  <audio id="liveAudio" style="display:none;"></audio>
+
   <div class="radio-app" id="radioApp">
 
     <!-- Header -->
@@ -260,6 +314,10 @@
       <button class="action-btn" id="btnPrivate">
         <span class="icon">👤</span>
         <span>Privado</span>
+      </button>
+      <button class="action-btn handsfree-btn" id="btnHandsFree">
+        <span class="icon">🎙️</span>
+        <span>Manos Libres</span>
       </button>
       <button class="action-btn sos-btn" id="btnEmergency">
         <span class="icon">🚨</span>

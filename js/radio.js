@@ -72,14 +72,19 @@
   }
 
   let mediaRecorder = null;
-  let audioChunks = [];
   let currentRoom = null;
   let micStream = null;
 
-  // Speech Recognition state
-  let recognition = null;
-  let isListening = false;
-  let handsFreeTimer = null;
+  // Half-Duplex lock state
+  let isChannelLocked = false;
+  let lockedByUser = '';
+
+  // Hands-free state
+  let isHandsFreeMode = false;
+  let handsFreeRecorder = null;
+
+  // AudioContext for playback
+  let globalAudioCtx = null;
 
   // ============ INIT ============
   function init() {
@@ -88,13 +93,33 @@
     setupPTT();
     setupModals();
     setupEmergency();
+    setupHandsFree();
     requestMicrophone();
     setupSocketReceivers();
+    
+    // Unlock iOS audio on first touch
+    const unlockAudio = () => {
+      if (!globalAudioCtx) globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+      const la = document.getElementById('liveAudio');
+      if (la) la.play().then(() => la.pause()).catch(()=>{});
+      document.body.removeEventListener('touchstart', unlockAudio);
+      document.body.removeEventListener('click', unlockAudio);
+    };
+    document.body.addEventListener('touchstart', unlockAudio, { once: true });
+    document.body.addEventListener('click', unlockAudio, { once: true });
   }
 
   async function requestMicrophone() {
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000
+        }
+      });
     } catch (err) {
       console.warn("Microphone access denied or error:", err);
       showToast("⚠️ Activa el permiso del micrófono");
@@ -104,80 +129,72 @@
   function setupSocketReceivers() {
     if (!socket) return;
     
-    // Registrar usuario en su frecuencia personal
     const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
     if (tenant.id && loggedInUser.id) {
       socket.emit('register_user', { empresaId: tenant.id, userId: loggedInUser.id, userName: loggedInUser.nombre });
     }
     
-    // Escuchar cambio de estado (Visible/Oculto) de otros usuarios
     socket.on('user_status_changed', (data) => {
       const { userId, isOnline } = data;
       const u = users.find(x => x.id === userId);
       if (u) {
         u.online = isOnline;
-        // Si el modal de privados está abierto, refrescarlo
-        if (document.getElementById('privateModal').classList.contains('active')) {
-          renderUsers();
-        }
+        if (document.getElementById('privateModal').classList.contains('active')) renderUsers();
       }
     });
     
-    // Escuchar "jalón" automático a llamada privada
     socket.on('incoming_private_call', (data) => {
       const { roomName, caller } = data;
-      // Actualizar variables de estado
       currentChannel = null;
       currentPrivateUser = { id: caller.id, name: caller.nombre, initials: caller.initials };
-      
-      // Cerrar modales si están abiertos
       document.getElementById('channelModal').classList.remove('active');
       document.getElementById('privateModal').classList.remove('active');
-      
-      // Forzar cambio visual y conexión
       updateChannelDisplay();
       showToast(`📞 Llamada entrante de ${caller.nombre}`);
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     });
     
-    let globalAudioCtx = null;
+    // ── Half-Duplex: Canal bloqueado por otro usuario ──
+    socket.on('channel_locked', (data) => {
+      isChannelLocked = true;
+      lockedByUser = data.user || 'Alguien';
+      // Si yo estoy transmitiendo y me llega un lock de otro, abortar
+      if (isTransmitting) stopTransmit(true);
+    });
     
+    socket.on('channel_unlocked', () => {
+      isChannelLocked = false;
+      lockedByUser = '';
+    });
+    
+    // Conteo de usuarios en el canal
+    socket.on('channel_user_count', (data) => {
+      if (currentChannel && data.room && data.room.includes(`canal_${currentChannel.id}`)) {
+        currentChannel.users = data.count;
+        const countEl = document.getElementById('userCount');
+        if (countEl) countEl.textContent = data.count;
+      }
+    });
+    
+    // ── Recibir audio y reproducir inmediatamente ──
     socket.on('receive_voice', async (data) => {
       const { audioBlob, sender, mimeType } = data;
       if (!audioBlob) return;
-
       showSpeaker(sender.name, sender.initials, false);
-
       try {
-        if (!globalAudioCtx) {
-          globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (globalAudioCtx.state === 'suspended') {
-          await globalAudioCtx.resume();
-        }
-
+        if (!globalAudioCtx) globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (globalAudioCtx.state === 'suspended') await globalAudioCtx.resume();
         const blob = new Blob([audioBlob], { type: mimeType || 'audio/webm' });
         const arrayBuffer = await blob.arrayBuffer();
-        
-        globalAudioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-          const source = globalAudioCtx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(globalAudioCtx.destination);
-          
-          source.onended = () => {
-            hideSpeaker();
-          };
-          
-          source.start(0);
-        }, (err) => {
-          console.error("Error decodificando audio (Safari incompatibility):", err);
-          hideSpeaker();
-          showToast("⚠️ Formato de audio incompatible recibido");
-        });
-
+        const audioBuffer = await globalAudioCtx.decodeAudioData(arrayBuffer);
+        const source = globalAudioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(globalAudioCtx.destination);
+        source.onended = () => hideSpeaker();
+        source.start(0);
       } catch (err) {
-        console.warn("Audio playback prevent:", err);
+        console.warn('Audio playback error:', err);
         hideSpeaker();
       }
     });
@@ -237,23 +254,30 @@
     const idleIcon = document.getElementById('idleIcon');
     const idleText = document.getElementById('idleText');
     
+    // Reset lock state on channel change
+    isChannelLocked = false;
+    lockedByUser = '';
+    
     if (!currentChannel && !currentPrivateUser) {
       labelEl.textContent = 'Estado de Conexión';
       nameEl.textContent = '🚫 Sin Conexión';
       usersEl.textContent = 'Selecciona un canal o usuario';
       idleIcon.textContent = '🔇';
       idleText.textContent = 'Aislado — Conéctate para escuchar';
-      stopVoiceRecognition();
     } else if (currentPrivateUser) {
       const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
       const myName = loggedInUser.nombre || 'TÚ';
 
-      labelEl.textContent = '📞 Llamada Privada';
-      nameEl.textContent = `${myName} (Anfitrión) y ${currentPrivateUser.name}`;
+      labelEl.textContent = '📞 LLAMADA PRIVADA';
+      // Nombres apilados: uno arriba, otro abajo
+      nameEl.innerHTML = `<div class="private-names">
+        <div class="caller-name">${myName}</div>
+        <div class="divider-icon">📞 ↕️</div>
+        <div class="callee-name">${currentPrivateUser.name}</div>
+      </div>`;
       usersEl.textContent = 'Comunicación privada enlazada';
       idleIcon.textContent = '📞';
       idleText.textContent = 'Línea privada — listo para hablar';
-      startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
@@ -267,7 +291,6 @@
       usersEl.innerHTML = `👥 <span id="userCount">${currentChannel.users}</span> conectados`;
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
-      startVoiceRecognition();
       
       if (socket) {
         let tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
@@ -278,70 +301,63 @@
     }
   }
 
-  // ============ HANDS-FREE VOICE RECOGNITION ============
-  function startVoiceRecognition() {
-    if (isListening || !('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+  // ============ HANDS-FREE MODE (Continuous Streaming) ============
+  function setupHandsFree() {
+    const btn = document.getElementById('btnHandsFree');
+    if (!btn) return;
     
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = 'es-ES';
-
-    recognition.onstart = function() {
-      isListening = true;
-      document.getElementById('voiceIndicator').style.display = 'block';
-    };
-
-    recognition.onresult = function(event) {
-      if (isTransmitting) return; // Ya estamos hablando
-      
-      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      
-      // Buscar frase "atento atento" (ignorando comas u otros signos)
-      if (transcript.includes('atento atento') || transcript.includes('atento, atento')) {
-        // ACTIVAR MICRÓFONO
-        startTransmit();
-        showToast('🎙️ Transmisión manos libres activada');
-        
-        // Cerrar después de 15 segundos
-        clearTimeout(handsFreeTimer);
-        handsFreeTimer = setTimeout(() => {
-          if (isTransmitting) {
-            stopTransmit();
-            showToast('🛑 Transmisión manos libres terminada');
-          }
-        }, 15000);
+    btn.addEventListener('click', () => {
+      if (!currentChannel && !currentPrivateUser) {
+        showToast('⚠️ Conéctate a un canal primero');
+        return;
       }
-    };
-
-    recognition.onerror = function(event) {
-      console.error('Speech recognition error', event.error);
-    };
-
-    recognition.onend = function() {
-      isListening = false;
-      document.getElementById('voiceIndicator').style.display = 'none';
-      // Desactivado temporalmente el reinicio infinito para evitar el "bip" molesto del sistema en celulares
-      /*
-      if (currentChannel || currentPrivateUser) {
-        try { recognition.start(); } catch(e) {}
+      isHandsFreeMode = !isHandsFreeMode;
+      btn.classList.toggle('active', isHandsFreeMode);
+      
+      if (isHandsFreeMode) {
+        showToast('🎙️ Manos Libres ACTIVADO — micrófono abierto');
+        document.getElementById('voiceIndicator').style.display = 'block';
+        document.getElementById('voiceIndicator').textContent = '🎙️ Manos Libres activo — micrófono abierto';
+        startHandsFreeStream();
+      } else {
+        showToast('🔇 Manos Libres DESACTIVADO');
+        document.getElementById('voiceIndicator').style.display = 'none';
+        stopHandsFreeStream();
       }
-      */
-    };
-
+    });
+  }
+  
+  function startHandsFreeStream() {
+    if (!micStream || !socket || !currentRoom) return;
     try {
-      recognition.start();
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
+      handsFreeRecorder = new MediaRecorder(micStream, { mimeType });
+      const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+      const sender = {
+        name: loggedInUser.nombre || 'Piloto',
+        initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+      };
+      
+      handsFreeRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && socket && currentRoom) {
+          socket.emit('transmit_voice', {
+            room: currentRoom,
+            audioBlob: event.data,
+            mimeType: handsFreeRecorder.mimeType,
+            sender
+          });
+        }
+      };
+      handsFreeRecorder.start(500); // chunks cada 500ms
     } catch (e) {
-      console.error(e);
+      console.warn('HandsFree recorder error:', e);
     }
   }
-
-  function stopVoiceRecognition() {
-    if (recognition) {
-      recognition.stop();
-      isListening = false;
-      document.getElementById('voiceIndicator').style.display = 'none';
+  
+  function stopHandsFreeStream() {
+    if (handsFreeRecorder && handsFreeRecorder.state === 'recording') {
+      handsFreeRecorder.stop();
+      handsFreeRecorder = null;
     }
   }
 
@@ -381,6 +397,13 @@
       return;
     }
 
+    // ── Verificar bloqueo local antes de pedir al servidor ──
+    if (isChannelLocked) {
+      showLockWarning(lockedByUser);
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+      return;
+    }
+
     isTransmitting = true;
 
     const btn = document.getElementById('pttBtn');
@@ -388,52 +411,56 @@
     document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
     document.getElementById('pttHint').textContent = 'Suelta para terminar';
 
-    // Show self as speaker
     showSpeaker('TÚ', '🎙️', true);
-
-    // Vibrate feedback
     if (navigator.vibrate) navigator.vibrate(50);
-    
-    // Start MediaRecorder
-    try {
-      audioChunks = [];
-      mediaRecorder = new MediaRecorder(micStream);
-      
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
+
+    // ── Pedir candado al servidor ──
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    if (socket && currentRoom) {
+      socket.emit('lock_channel', { room: currentRoom, user: loggedInUser.nombre || 'Piloto' }, (response) => {
+        if (response && !response.success) {
+          // Servidor denegó → abortar
+          stopTransmit(true);
+          showLockWarning(response.lockedBy || 'Alguien');
+          return;
         }
+      });
+    }
+    
+    // ── Iniciar MediaRecorder con micro-chunks de 200ms ──
+    try {
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4';
+      mediaRecorder = new MediaRecorder(micStream, { mimeType });
+      const sender = {
+        name: loggedInUser.nombre || 'Piloto',
+        initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
       };
       
-      mediaRecorder.onstop = () => {
-        if (audioChunks.length > 0 && socket && currentRoom) {
-          const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          const audioBlob = new Blob(audioChunks, { type: mimeType });
-          const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-          
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0 && socket && currentRoom) {
           socket.emit('transmit_voice', {
             room: currentRoom,
-            audioBlob: audioBlob,
-            mimeType: mimeType,
-            sender: {
-              name: loggedInUser.nombre || 'Piloto',
-              initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-            }
+            audioBlob: event.data,
+            mimeType: mediaRecorder.mimeType,
+            sender
           });
         }
       };
       
-      mediaRecorder.start();
+      mediaRecorder.start(200); // ← Micro-chunks cada 200ms = latencia mínima
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
   }
 
-  function stopTransmit() {
-    if (!isTransmitting) return;
+  function stopTransmit(abort) {
+    if (!isTransmitting && !abort) return;
     isTransmitting = false;
 
-    clearTimeout(handsFreeTimer);
+    // Liberar candado en el servidor
+    if (socket && currentRoom && !abort) {
+      socket.emit('unlock_channel', { room: currentRoom });
+    }
 
     const btn = document.getElementById('pttBtn');
     btn.classList.remove('active');
@@ -443,10 +470,24 @@
     hideSpeaker();
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
+      if (abort) mediaRecorder.onstop = null;
       mediaRecorder.stop();
     }
 
     if (navigator.vibrate) navigator.vibrate(30);
+  }
+
+  // ── Mostrar advertencia visual de canal ocupado ──
+  function showLockWarning(userName) {
+    // Remove existing warning if any
+    const existing = document.querySelector('.lock-warning');
+    if (existing) existing.remove();
+    
+    const div = document.createElement('div');
+    div.className = 'lock-warning';
+    div.innerHTML = `⚠️ Espere un momento<br><strong>${userName.toUpperCase()}</strong> está hablando`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
   }
 
   // ============ SPEAKER DISPLAY ============
