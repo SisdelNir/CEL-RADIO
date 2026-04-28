@@ -137,15 +137,20 @@
     
     // Enter button → go to the radio
     enterBtn.addEventListener('click', () => {
-      unlockAudioContext();
-      
-      // Unlock iOS persistent audio element
-      const liveAudio = document.getElementById('liveAudio');
-      if (liveAudio) {
-        liveAudio.play().then(() => liveAudio.pause()).catch(()=>{});
-      }
-      
+      // Ocultar la pantalla inmediatamente, pase lo que pase
       overlay.classList.add('hidden');
+      
+      try {
+        unlockAudioContext();
+        
+        // Unlock iOS persistent audio element
+        const liveAudio = document.getElementById('liveAudio');
+        if (liveAudio) {
+          liveAudio.play().then(() => liveAudio.pause()).catch(()=>{});
+        }
+      } catch (e) {
+        console.warn("Audio unlock warning:", e);
+      }
     });
   }
 
