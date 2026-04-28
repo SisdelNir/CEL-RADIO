@@ -491,18 +491,23 @@
     
     try {
       mediaRecorder = new MediaRecorder(micStream);
+      const chunks = [];
       
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0 && socket && currentRoom) {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        if (chunks.length > 0 && socket && currentRoom) {
           const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          const blob = new Blob([event.data], { type: mimeType });
-          socket.emit('transmit_voice', { room: currentRoom, audioBlob: blob, mimeType, sender });
+          const audioBlob = new Blob(chunks, { type: mimeType });
+          console.log('[PTT] Enviando blob completo:', audioBlob.size, 'bytes');
+          socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
         }
       };
       
-      // Enviar chunks cada 500ms para streaming casi en tiempo real
-      mediaRecorder.start(500);
-      console.log('[PTT] Grabando y transmitiendo en tiempo real');
+      mediaRecorder.start();
+      console.log('[PTT] Grabando audio completo');
     } catch (e) {
       console.warn('Error starting MediaRecorder:', e);
     }
