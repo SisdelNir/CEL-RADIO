@@ -365,19 +365,30 @@
     const btn = document.getElementById('btnHandsFree');
     if (!btn) return;
     
-    // El botón ahora solo sirve para indicar visualmente, 
-    // pero el reconocimiento corre siempre en background.
     btn.addEventListener('click', () => {
+      if (!currentChannel && !currentPrivateUser) {
+        showToast('⚠️ Conéctate a un canal primero');
+        return;
+      }
+      
       isHandsFreeMode = !isHandsFreeMode;
       btn.classList.toggle('active', isHandsFreeMode);
       
       if (isHandsFreeMode) {
-        showToast('🎙️ Micrófono Abierto ACTIVADO');
+        // ABRIR MICRÓFONO INMEDIATAMENTE
+        showToast('🎙️ Micrófono Abierto — TRANSMITIENDO');
         document.getElementById('voiceIndicator').style.display = 'block';
-        document.getElementById('voiceIndicator').textContent = '🎙️ Escuchando... di "Atento, Atento [Canal]"';
+        document.getElementById('voiceIndicator').textContent = '🟢 Micrófono Abierto — Transmitiendo en vivo';
+        
+        // Iniciar transmisión directa (misma lógica que PTT)
+        startTransmit();
       } else {
-        showToast('🔇 Micrófono Abierto DESACTIVADO (Comandos de voz siguen activos)');
+        // CERRAR MICRÓFONO
+        showToast('🔇 Micrófono Abierto DESACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'none';
+        
+        // Detener transmisión
+        stopTransmit(false);
       }
     });
   }
@@ -577,15 +588,17 @@
       });
     }
 
-    // Timeout de seguridad inicial por inactividad (15s)
-    clearTimeout(transmitTimeout);
-    transmitTimeout = setTimeout(() => {
-      showToast('⏱️ Transmisión terminada por inactividad (15s)');
-      stopTransmit(false);
-    }, MAX_LOCAL_SPEAK);
-    
-    // Iniciar el monitoreo de audio para resetear el timer mientras haya voz
-    startVAD();
+    // Timeout de seguridad (solo si NO es modo Micrófono Abierto)
+    if (!isHandsFreeMode) {
+      clearTimeout(transmitTimeout);
+      transmitTimeout = setTimeout(() => {
+        showToast('⏱️ Transmisión terminada por inactividad (15s)');
+        stopTransmit(false);
+      }, MAX_LOCAL_SPEAK);
+      
+      // Iniciar el monitoreo de audio para resetear el timer mientras haya voz
+      startVAD();
+    }
     
     // GRABAR INMEDIATAMENTE (sin esperar respuesta del servidor)
     const sender = {
@@ -630,6 +643,14 @@
     document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
 
     hideSpeaker();
+
+    // Resetear botón de Micrófono Abierto si estaba activo
+    if (isHandsFreeMode) {
+      isHandsFreeMode = false;
+      const hfBtn = document.getElementById('btnHandsFree');
+      if (hfBtn) hfBtn.classList.remove('active');
+      document.getElementById('voiceIndicator').style.display = 'none';
+    }
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       if (abort) mediaRecorder.onstop = null;
