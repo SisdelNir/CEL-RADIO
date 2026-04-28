@@ -851,10 +851,7 @@
         if (!res.ok) throw new Error('API error');
         return await res.json();
       } catch (err) {
-        console.warn('Fallback a localStorage');
-        const stored = localStorage.getItem(USERS_STORAGE_KEY);
-        if (stored) return JSON.parse(stored);
-        
+        console.warn('Fallo API, devolviendo array vacío');
         return [];
       }
     }

@@ -60,11 +60,8 @@
           empresas = await resEmp.json();
         }
         
-        // Merge with localStorage just in case (for companies created before API connection)
-        const localEmpresas = JSON.parse(localStorage.getItem('cel_empresas') || '[]');
-        for (const le of localEmpresas) {
-          if (!empresas.find(e => e.id === le.id)) empresas.push(le);
-        }
+        // Limpiar caché local obsoleta para evitar problemas
+        localStorage.removeItem('cel_empresas');
 
         // Check director codes
         const empresa = empresas.find(e => e.director && e.director.codigo.toUpperCase() === code);
@@ -82,10 +79,9 @@
           if (resUsr && resUsr.ok) {
             users = await resUsr.json();
           }
-          const localUsers = JSON.parse(localStorage.getItem(`cel_users_${e.id}`) || '[]');
-          for (const lu of localUsers) {
-             if (!users.find(u => u.id === lu.id)) users.push(lu);
-          }
+          
+          // Limpiar caché local de usuarios
+          localStorage.removeItem(`cel_users_${e.id}`);
 
           const user = users.find(u => u.codigo && u.codigo.toUpperCase() === code);
           if (user) {
