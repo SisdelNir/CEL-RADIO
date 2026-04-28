@@ -418,7 +418,7 @@ body::before {
 
 .ptt-btn:active,
 .ptt-btn.transmitting {
-  background: radial-gradient(circle, rgba(0,212,255,0.3) 0%, rgba(0,212,255,0.1) 70%);
+  background: radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.1) 70%);
   border-color: var(--green);
   box-shadow: 0 0 40px var(--green-glow), 0 0 80px rgba(0,230,118,0.15);
   transform: scale(0.95);

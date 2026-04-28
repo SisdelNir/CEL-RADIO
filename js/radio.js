@@ -231,7 +231,7 @@
       speakGranted = false;
       clearTimeout(transmitTimeout);
       const btn = document.getElementById('pttBtn');
-      btn.classList.remove('active');
+      btn.classList.remove('transmitting');
       document.getElementById('pttLabel').textContent = 'HABLAR';
       document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
       hideSpeaker();
@@ -561,7 +561,7 @@
     speakGranted = false;
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.add('active');
+    btn.classList.add('transmitting');
     document.getElementById('pttLabel').textContent = 'TRANSMITIENDO';
     document.getElementById('pttHint').textContent = 'Suelta para terminar';
     showSpeaker('TÚ', '🎙️', true);
@@ -625,7 +625,7 @@
     stopVAD();
 
     const btn = document.getElementById('pttBtn');
-    btn.classList.remove('active');
+    btn.classList.remove('transmitting');
     document.getElementById('pttLabel').textContent = 'HABLAR';
     document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
 
