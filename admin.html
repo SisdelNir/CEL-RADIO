@@ -723,12 +723,18 @@
       deleteTargetId = null;
     }
 
-    function confirmDeleteChannel() {
+    async function confirmDeleteChannel() {
       if (deleteTargetId === null) return;
 
       let channels = loadChannels();
       const ch = channels.find(c => c.id === deleteTargetId);
       const name = ch ? ch.nombre : '';
+
+      try {
+        await fetch(`/api/canales/${deleteTargetId}`, { method: 'DELETE' });
+      } catch(e) {
+        console.warn("Fallo al borrar canal en API:", e);
+      }
 
       channels = channels.filter(c => c.id !== deleteTargetId);
       saveChannelsToStorage(channels);
@@ -1015,6 +1021,12 @@
       let users = await loadUsers();
       const usr = users.find(u => u.id === deleteUserTargetId);
       const name = usr ? usr.nombre : '';
+
+      try {
+        await fetch(`/api/usuarios/${deleteUserTargetId}`, { method: 'DELETE' });
+      } catch(e) {
+        console.warn("Fallo al borrar en API:", e);
+      }
 
       users = users.filter(u => u.id !== deleteUserTargetId);
       saveUsersToStorage(users);
