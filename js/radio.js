@@ -635,63 +635,67 @@
 
   function renderUsers() {
     const container = document.getElementById('userList');
-    // Filtrar al propio usuario y solo mostrar a los que están "Visible" (online = true)
+    container.innerHTML = '';
     const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-    const otherUsers = users.filter(u => u.id !== loggedInUser.id && u.online);
+    const otherUsers = users.filter(u => u.id !== loggedInUser.id);
+    // Ordenar: online primero, offline después
+    otherUsers.sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
 
     if (otherUsers.length === 0) {
-      container.innerHTML = `
-        <div style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
-          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">👤</div>
-          <h3 style="color: #fff; margin-bottom: 8px;">Nadie Disponible</h3>
-          <p>No hay otros usuarios visibles o en turno en este momento.</p>
+      container.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: #64748b;"><div style="font-size:48px; margin-bottom:16px;">👤</div><h3 style="color:#fff;">Sin Usuarios</h3><p>No hay otros usuarios registrados.</p></div>';
+      return;
+    }
+    
+    otherUsers.forEach(u => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = 'display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:12px; cursor:pointer; width:100%; border:1px solid rgba(255,255,255,0.06); background:rgba(30,36,50,0.6); color:#fff; font-family:inherit; margin-bottom:8px; text-align:left; opacity:' + (u.online ? '1' : '0.5') + ';';
+      
+      const dotColor = u.online ? '#10b981' : '#64748b';
+      const statusText = u.online ? 'En línea' : 'Desconectado';
+      
+      btn.innerHTML = `
+        <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg, #0ea5e9, #6366f1);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">${u.initials}</div>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:15px;">${u.name}</div>
+          <div style="font-size:12px;color:#94a3b8;">${u.role}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+          <div style="width:12px;height:12px;border-radius:50%;background:${dotColor};box-shadow:0 0 6px ${dotColor};"></div>
+          <span style="font-size:9px;color:${dotColor};">${statusText}</span>
         </div>
       `;
-    } else {
-      container.innerHTML = otherUsers.map(u => `
-        <div class="user-item" data-id="${u.id}">
-          <div class="user-avatar">${u.initials}</div>
-          <div>
-            <div class="user-name">${u.name}</div>
-            <div class="user-role">${u.role}</div>
-          </div>
-          <div class="user-status-dot online"></div>
-        </div>
-      `).join('');
-    }
-
-    container.querySelectorAll('.user-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const u = users.find(x => String(x.id) === item.dataset.id);
-        if (u && u.online) {
-          currentPrivateUser = u;
-          currentChannel = null;
-          updateChannelDisplay();
-          
-          // Emitir orden de Jalón Automático
-          if (socket) {
-            const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
-            const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
-            const roomName = `private_${tenant.id}_${Math.min(loggedInUser.id, u.id)}_${Math.max(loggedInUser.id, u.id)}`;
-            
-            socket.emit('force_private_call', {
-              targetUserId: u.id,
-              empresaId: tenant.id,
-              roomName: roomName,
-              caller: {
-                id: loggedInUser.id,
-                nombre: loggedInUser.nombre || 'Piloto',
-                initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
-              }
-            });
-          }
-          
-          document.getElementById('privateModal').classList.remove('active');
-          showToast(`Llamada Privada iniciada con: ${u.name}`);
-        } else if (u && !u.online) {
-          showToast('Usuario no disponible');
+      
+      btn.addEventListener('click', function() {
+        if (!u.online) {
+          showToast('⚠️ ' + u.name + ' está desconectado');
+          return;
         }
+        currentPrivateUser = u;
+        currentChannel = null;
+        updateChannelDisplay();
+        
+        if (socket) {
+          const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+          const roomName = 'private_' + tenant.id + '_' + Math.min(loggedInUser.id, u.id) + '_' + Math.max(loggedInUser.id, u.id);
+          
+          socket.emit('force_private_call', {
+            targetUserId: u.id,
+            empresaId: tenant.id,
+            roomName: roomName,
+            caller: {
+              id: loggedInUser.id,
+              nombre: loggedInUser.nombre || 'Piloto',
+              initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
+            }
+          });
+        }
+        
+        document.getElementById('privateModal').classList.remove('active');
+        showToast('📞 Llamada Privada con: ' + u.name);
       });
+      
+      container.appendChild(btn);
     });
   }
 

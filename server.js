@@ -133,7 +133,9 @@ io.on('connection', (socket) => {
     const personalRoom = `empresa_${empresaId}_user_${userId}`;
     socket.join(personalRoom);
     socket.userData = { empresaId, userId, userName };
-    console.log(`[Socket] Frecuencia personal asignada: ${userName} en ${personalRoom}`);
+    // Avisar a todos que este usuario está en línea
+    socket.broadcast.emit('user_status_changed', { userId, isOnline: true });
+    console.log(`[Socket] ${userName} ONLINE en ${personalRoom}`);
   });
 
   // Cuando un usuario se une a un canal (Grupo o Privado)
@@ -234,6 +236,10 @@ io.on('connection', (socket) => {
       if (state.speakerId === socket.id) {
         releaseSpeak(room, 'DISCONNECT');
       }
+    }
+    // Avisar a todos que este usuario se desconectó
+    if (socket.userData && socket.userData.userId) {
+      socket.broadcast.emit('user_status_changed', { userId: socket.userData.userId, isOnline: false });
     }
     // Actualizar conteo en la sala de voz
     if (socket.currentVoiceRoom) {
