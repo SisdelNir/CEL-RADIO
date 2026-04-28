@@ -447,10 +447,17 @@
     // Start MediaRecorder
     try {
       audioChunks = [];
-      mediaRecorder = new MediaRecorder(micStream);
+      
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(options.mimeType)) {
+        mediaRecorder = new MediaRecorder(micStream, options);
+      } else {
+        // Fallback for iOS Safari
+        mediaRecorder = new MediaRecorder(micStream);
+      }
       
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunks.push(event.data);
         }
       };
@@ -470,10 +477,14 @@
               initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
             }
           });
+        } else {
+           console.warn("No audio chunks recorded or missing socket/room");
         }
       };
       
-      mediaRecorder.start();
+      // Pasar un timeslice (ej. 250ms) obliga a Safari a emitir chunks periódicamente
+      // resolviendo un bug donde ondataavailable nunca se dispara si la grabación es corta.
+      mediaRecorder.start(250);
     } catch (e) {
       console.warn("Error starting MediaRecorder:", e);
     }
