@@ -131,9 +131,9 @@
       const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
       const myName = loggedInUser.nombre || 'TÚ';
 
-      labelEl.textContent = 'Llamada Privada';
-      nameEl.textContent = `👤 ${myName} ↔ ${currentPrivateUser.name}`;
-      usersEl.textContent = 'Conexión directa segura';
+      labelEl.textContent = '📞 Llamada Privada';
+      nameEl.textContent = `${myName} (Anfitrión) y ${currentPrivateUser.name}`;
+      usersEl.textContent = 'Comunicación privada enlazada';
       idleIcon.textContent = '📞';
       idleText.textContent = 'Línea privada — listo para hablar';
       startVoiceRecognition();

@@ -8,30 +8,32 @@
 </head>
 <body>
   <div class="radio-app" id="radioApp">
-    <!-- Header -->
-    <header class="radio-header">
-      <div class="company">
-        <div class="company-logo" id="companyLogo">TB</div>
-        <div>
-          <div class="company-name" id="companyName">Transportes Bautista</div>
-          <div class="company-plan">
-            🟢 Conectado <span style="margin:0 6px;color:var(--text-muted)">|</span>
-            <span id="currentUserDisplay" style="color:var(--accent)">Usuario</span>
-          </div>
-        </div>
+    <!-- Header Integrado y Rediseñado -->
+    <header style="padding: 30px 20px; background: rgba(0, 184, 212, 0.05); border-bottom: 1px solid rgba(0, 184, 212, 0.2); text-align: center; position: relative;">
+      
+      <!-- Elementos ocultos para evitar errores en JS -->
+      <div id="companyLogo" style="display:none;"></div>
+      <div class="status-dot" id="statusDot" style="display:none;"></div>
+
+      <!-- Botón Salir -->
+      <button id="btnLogout" style="position: absolute; right: 20px; top: 20px; background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3); color: var(--red); border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; padding: 8px 16px; transition: 0.2s;" title="Cerrar Sesión">Salir 🚪</button>
+      
+      <!-- 1. NOMBRE DE LA EMPRESA -->
+      <div id="companyName" style="font-size: 32px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 20px rgba(0, 184, 212, 0.6); margin-bottom: 8px; margin-top: 10px;">TRANSPORTES BAUTISTA</div>
+      
+      <!-- 3. NOMBRE DEL USUARIO -->
+      <div style="font-size: 16px; color: var(--text-secondary); margin-bottom: 24px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <div style="width: 12px; height: 12px; background: var(--green); border-radius: 50%; box-shadow: 0 0 10px var(--green);"></div>
+        <span id="currentUserDisplay" style="color: var(--white); font-weight: 700; font-size: 18px; letter-spacing: 0.5px;">Usuario</span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="status-dot" id="statusDot"></div>
-        <button id="btnLogout" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px;" title="Cerrar Sesión">🚪</button>
+
+      <!-- 2. CANAL ACTIVADO -->
+      <div id="channelBar" style="background: rgba(10, 15, 25, 0.8); border: 1px solid var(--accent); border-radius: 16px; padding: 16px 24px; display: inline-block; min-width: 80%; max-width: 400px; box-shadow: 0 8px 32px rgba(0, 184, 212, 0.15); backdrop-filter: blur(10px);">
+        <div id="channelLabel" style="font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; font-weight: 800;">Estado de Conexión</div>
+        <div id="channelName" style="font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 6px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">🚫 Sin Conexión</div>
+        <div id="channelUsersText" style="font-size: 14px; color: var(--text-muted); font-weight: 500;">Selecciona un canal o usuario</div>
       </div>
     </header>
-
-    <!-- Channel Info -->
-    <div class="channel-bar" id="channelBar">
-      <div class="channel-label" id="channelLabel">Estado de Conexión</div>
-      <div class="channel-name" id="channelName">🚫 Sin Conexión</div>
-      <div class="channel-users" id="channelUsersText">Selecciona un canal o usuario</div>
-    </div>
 
     <!-- Voice Command Indicator -->
     <div id="voiceIndicator" style="display:none; text-align:center; padding:10px; background:rgba(0,184,212,0.1); color:var(--accent); font-size:12px; border-bottom:1px solid rgba(0,184,212,0.2);">

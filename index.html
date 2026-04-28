@@ -108,7 +108,11 @@
       codeInput.focus();
     });
 
-    codeInput.focus();
+    // Asegurar que siempre inicie vacío y enfocado
+    window.onload = () => {
+      codeInput.value = '';
+      codeInput.focus();
+    };
   </script>
 </body>
 </html>

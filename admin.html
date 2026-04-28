@@ -10,9 +10,12 @@
   <div class="admin-layout">
     <!-- Sidebar -->
     <aside class="admin-sidebar">
-      <div class="logo">
-        <div class="icon-box">📻</div>
-        <h2>CEL-RADIO</h2>
+      <div class="logo" style="flex-direction: column; align-items: flex-start; gap: 16px; padding-top: 24px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="icon-box">📻</div>
+          <h2>CEL-RADIO</h2>
+        </div>
+        <div id="sidebarCompanyName" style="font-size: 26px; font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.1; letter-spacing: 0.5px; text-shadow: 0 0 15px rgba(0, 184, 212, 0.6); word-break: break-word;"></div>
       </div>
       <ul class="sidebar-nav">
         <li><a href="#" class="active" data-view="dashboard"><span class="nav-icon">📊</span> Panel de Control</a></li>
@@ -461,6 +464,7 @@
 
     // Populate dynamic data
     if (empresa.nombre) {
+      document.getElementById('sidebarCompanyName').textContent = empresa.nombre;
       document.getElementById('tenantTitle').textContent = empresa.nombre + ' — ' + (PAISES_LABEL[empresa.pais] || empresa.pais);
       // Sidebar user
       const initials = empresa.director ? empresa.director.nombre.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : 'DG';
@@ -502,15 +506,8 @@
 
     const STORAGE_KEY = empresa.id ? `cel_channels_${empresa.id}` : 'cel_channels';
 
-    // Default seed channels
-    const DEFAULT_CHANNELS = [
-      { id: 1, nombre: 'Ruta Occidente', icono: '🛣️', tipo: 'grupo',     modo: 'ptt',          usuarios: 12, estado: 'activo', descripcion: 'Canal principal ruta occidente' },
-      { id: 2, nombre: 'Ruta Oriente',   icono: '🛣️', tipo: 'grupo',     modo: 'ptt',          usuarios: 8,  estado: 'activo', descripcion: 'Canal principal ruta oriente' },
-      { id: 3, nombre: 'Base Central',   icono: '🏢', tipo: 'grupo',     modo: 'ptt',          usuarios: 5,  estado: 'activo', descripcion: 'Comunicación con base central' },
-      { id: 4, nombre: 'Emergencias',    icono: '🚨', tipo: 'emergencia', modo: 'abierto',     usuarios: 24, estado: 'activo', descripcion: 'Canal de emergencias 24/7' },
-      { id: 5, nombre: 'Mecánica',       icono: '🔧', tipo: 'grupo',     modo: 'ptt',          usuarios: 3,  estado: 'activo', descripcion: 'Soporte mecánico' },
-      { id: 6, nombre: 'Anuncios',       icono: '📢', tipo: 'difusion', modo: 'Solo escucha', usuarios: 45, estado: 'activo', descripcion: 'Anuncios generales' },
-    ];
+    // Default seed channels (Eliminados por solicitud)
+    const DEFAULT_CHANNELS = [];
 
     // Load channels from localStorage or use defaults
     function loadChannels() {
@@ -518,8 +515,7 @@
       if (stored) {
         try { return JSON.parse(stored); } catch { /* fallback */ }
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CHANNELS));
-      return [...DEFAULT_CHANNELS];
+      return [];
     }
 
     function saveChannelsToStorage(channels) {
@@ -796,17 +792,8 @@
       }
     }
 
-    // Default seed users
-    const DEFAULT_USERS = [
-      { id: 1, nombre: 'Juan Rodríguez',  identificacion: 'DPI 1234 56789 0101', telefono: '+502 5555-1234', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-01-15' },
-      { id: 2, nombre: 'Carlos Méndez',   identificacion: 'DPI 2345 67890 0102', telefono: '+502 5555-5678', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-01-20' },
-      { id: 3, nombre: 'María García',    identificacion: 'DPI 3456 78901 0103', telefono: '+502 5555-9012', rol: 'operador', codigo: '', estado: 'en_linea',     creado: '2026-02-01' },
-      { id: 4, nombre: 'Pedro López',     identificacion: 'DPI 4567 89012 0104', telefono: '+502 5555-3456', rol: 'piloto',   codigo: '', estado: 'desconectado', creado: '2026-02-10' },
-      { id: 5, nombre: 'Ana Torres',      identificacion: 'DPI 5678 90123 0105', telefono: '+502 5555-7890', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-02-15' },
-      { id: 6, nombre: 'Roberto Paz',     identificacion: 'DPI 6789 01234 0106', telefono: '+502 5555-2345', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-03-01' },
-      { id: 7, nombre: 'Luis Hernández',  identificacion: 'DPI 7890 12345 0107', telefono: '+502 5555-6789', rol: 'mecanico', codigo: '', estado: 'desconectado', creado: '2026-03-05' },
-      { id: 8, nombre: 'Diego Ramírez',   identificacion: 'DPI 8901 23456 0108', telefono: '+502 5555-0123', rol: 'piloto',   codigo: '', estado: 'en_linea',     creado: '2026-03-10' },
-    ];
+    // Default seed users (Eliminados por solicitud)
+    const DEFAULT_USERS = [];
 
     async function loadUsers() {
       try {
@@ -818,13 +805,7 @@
         const stored = localStorage.getItem(USERS_STORAGE_KEY);
         if (stored) return JSON.parse(stored);
         
-        // Generate codes for default users on first load
-        const users = DEFAULT_USERS.map(u => ({
-          ...u,
-          codigo: generateUserCode(u.nombre)
-        }));
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-        return users;
+        return [];
       }
     }
 

@@ -152,7 +152,10 @@
     <main class="master-main" id="mainContent">
       <!-- Default: Create form -->
       <div id="viewCreate">
-        <h1>🏢 Nueva Empresa</h1>
+        <div class="ch-header-flex" style="position:relative;">
+          <h1>🏢 Nueva Empresa (Tenant)</h1>
+          <button class="ch-modal-close" onclick="document.getElementById('viewCreate').style.display='none'" style="position:absolute; right:0; top:0; font-size:100px;">&times;</button>
+        </div>
         <p class="subtitle">Registra una nueva empresa en el sistema CEL-RADIO</p>
 
         <div class="section-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:28px">
