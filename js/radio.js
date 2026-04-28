@@ -314,12 +314,12 @@
       btn.classList.toggle('active', isHandsFreeMode);
       
       if (isHandsFreeMode) {
-        showToast('🎙️ Manos Libres ACTIVADO — micrófono abierto');
+        showToast('🎙️ Micrófono Abierto ACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'block';
-        document.getElementById('voiceIndicator').textContent = '🎙️ Manos Libres activo — micrófono abierto';
+        document.getElementById('voiceIndicator').textContent = '🎙️ Micrófono Abierto activo — micrófono abierto';
         startHandsFreeStream();
       } else {
-        showToast('🔇 Manos Libres DESACTIVADO');
+        showToast('🔇 Micrófono Abierto DESACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'none';
         stopHandsFreeStream();
       }
