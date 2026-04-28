@@ -16,7 +16,18 @@
   try {
     const res = await fetch(`/api/canales/${tenant.id}`).catch(() => null);
     if (res && res.ok) {
-       channels = await res.json();
+       const rawChannels = await res.json();
+       // Mapear campos de la API (nombre, icono...) al formato interno (name, icon...)
+       channels = rawChannels
+         .filter(c => c.estado === 'activo')
+         .map(c => ({
+           id: c.id,
+           name: c.nombre,
+           icon: c.icono || '📻',
+           type: c.tipo || 'grupo',
+           users: 0,
+           mode: c.modo || 'ptt'
+         }));
     }
   } catch (e) {
     console.warn('Error loading channels:', e);
