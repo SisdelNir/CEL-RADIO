@@ -846,8 +846,8 @@
     };
 
     // Render users table
-    function renderUsers() {
-      const users = loadUsers();
+    async function renderUsers() {
+      const users = await loadUsers();
       const tbody = document.getElementById('usersTableBody');
 
       if (users.length === 0) {
@@ -915,8 +915,8 @@
     }
 
     // ─── Modal: Open for Edit ───
-    function editUser(id) {
-      const users = loadUsers();
+    async function editUser(id) {
+      const users = await loadUsers();
       const usr = users.find(u => u.id === id);
       if (!usr) return;
 
@@ -939,7 +939,7 @@
     }
 
     // ─── Save (Create or Update) ───
-    function saveUser(e) {
+    async function saveUser(e) {
       e.preventDefault();
 
       const editId = document.getElementById('usrEditId').value;
@@ -954,7 +954,7 @@
         return;
       }
 
-      const users = loadUsers();
+      const users = await loadUsers();
 
       if (editId) {
         // UPDATE
@@ -1013,8 +1013,8 @@
     // ─── Delete ───
     let deleteUserTargetId = null;
 
-    function deleteUser(id) {
-      const users = loadUsers();
+    async function deleteUser(id) {
+      const users = await loadUsers();
       const usr = users.find(u => u.id === id);
       if (!usr) return;
 
@@ -1028,10 +1028,10 @@
       deleteUserTargetId = null;
     }
 
-    function confirmDeleteUser() {
+    async function confirmDeleteUser() {
       if (deleteUserTargetId === null) return;
 
-      let users = loadUsers();
+      let users = await loadUsers();
       const usr = users.find(u => u.id === deleteUserTargetId);
       const name = usr ? usr.nombre : '';
 
@@ -1045,8 +1045,8 @@
     // ─── View Code Modal ───
     let currentViewCode = '';
 
-    function viewUserCode(id) {
-      const users = loadUsers();
+    async function viewUserCode(id) {
+      const users = await loadUsers();
       const usr = users.find(u => u.id === id);
       if (!usr) return;
 
