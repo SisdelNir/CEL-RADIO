@@ -334,6 +334,10 @@ body::before {
   animation: soundWave 1s ease-out infinite;
 }
 
+.speaker-avatar.is-self .sound-waves {
+  border-color: var(--green);
+}
+
 .speaker-avatar .sound-waves:nth-child(2) {
   inset: -16px;
   animation-delay: 0.3s;

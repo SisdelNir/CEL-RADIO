@@ -104,6 +104,10 @@
       if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
       const la = document.getElementById('liveAudio');
       if (la) la.play().then(() => la.pause()).catch(()=>{});
+      
+      // Iniciar el reconocimiento de voz de fondo al primer toque
+      startVoiceRecognition();
+      
       document.body.removeEventListener('touchstart', unlockAudio);
       document.body.removeEventListener('click', unlockAudio);
     };
@@ -338,7 +342,7 @@
     } else {
       labelEl.textContent = 'Canal Activo';
       nameEl.textContent = `📻 ${currentChannel.name}`;
-      usersEl.innerHTML = `👥 <span id="userCount">${currentChannel.users}</span> conectados`;
+      usersEl.innerHTML = `👥 Total Empresa: ${users.length} | 🟢 En Canal: <span id="userCount">${currentChannel.users}</span>`;
       idleIcon.textContent = currentChannel.icon || '📻';
       idleText.textContent = 'Canal libre — listo para hablar';
       
@@ -356,28 +360,24 @@
   let isListening = false;
   let handsFreeTimer = null;
 
-  // ============ HANDS-FREE MODE (Wake Word: "Atento, Atento") ============
+  // ============ HANDS-FREE MODE (Wake Word: "Atento, Atento [Canal]") ============
   function setupHandsFree() {
     const btn = document.getElementById('btnHandsFree');
     if (!btn) return;
     
+    // El botón ahora solo sirve para indicar visualmente, 
+    // pero el reconocimiento corre siempre en background.
     btn.addEventListener('click', () => {
-      if (!currentChannel && !currentPrivateUser) {
-        showToast('⚠️ Conéctate a un canal primero');
-        return;
-      }
       isHandsFreeMode = !isHandsFreeMode;
       btn.classList.toggle('active', isHandsFreeMode);
       
       if (isHandsFreeMode) {
-        showToast('🎙️ Micrófono Abierto ACTIVADO — Di "Atento, Atento" para hablar');
+        showToast('🎙️ Micrófono Abierto ACTIVADO');
         document.getElementById('voiceIndicator').style.display = 'block';
-        document.getElementById('voiceIndicator').textContent = '🎙️ Escuchando... di "Atento, Atento"';
-        startVoiceRecognition();
+        document.getElementById('voiceIndicator').textContent = '🎙️ Escuchando... di "Atento, Atento [Canal]"';
       } else {
-        showToast('🔇 Micrófono Abierto DESACTIVADO');
+        showToast('🔇 Micrófono Abierto DESACTIVADO (Comandos de voz siguen activos)');
         document.getElementById('voiceIndicator').style.display = 'none';
-        stopVoiceRecognition();
       }
     });
   }
@@ -385,7 +385,7 @@
   function startVoiceRecognition() {
     if (isListening) return;
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      showToast('⚠️ Tu navegador no soporta reconocimiento de voz');
+      console.warn('Tu navegador no soporta reconocimiento de voz continuo.');
       return;
     }
     
@@ -397,16 +397,41 @@
 
     recognition.onstart = function() {
       isListening = true;
-      document.getElementById('voiceIndicator').style.display = 'block';
+      if (isHandsFreeMode) {
+        document.getElementById('voiceIndicator').style.display = 'block';
+      }
     };
 
     recognition.onresult = function(event) {
       if (isTransmitting) return;
       
       const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+      console.log('🗣️ Voz detectada:', transcript);
       
       // Buscar frase "atento atento"
       if (transcript.includes('atento atento') || transcript.includes('atento, atento')) {
+        
+        // Extraer nombre del canal, ej: "atento atento arena"
+        let phrase = transcript.replace(/.*atento[,\s]*atento\s*/, '').trim();
+        
+        // Buscar el canal en la lista
+        let targetChannel = null;
+        if (phrase) {
+          // Buscamos si alguna palabra en la frase coincide con el nombre de un canal
+          targetChannel = channels.find(c => phrase.includes(c.name.toLowerCase()));
+        }
+        
+        if (targetChannel) {
+          // Cambiar a ese canal automáticamente
+          currentChannel = targetChannel;
+          currentPrivateUser = null;
+          updateChannelDisplay();
+          showToast(`📻 Cambiando a Canal: ${targetChannel.name} por voz`);
+        } else if (!currentChannel && !currentPrivateUser) {
+           showToast('⚠️ No se entendió el canal y no estás conectado a ninguno');
+           return; // Abortar si no hay canal de destino
+        }
+        
         // ACTIVAR TRANSMISIÓN
         startTransmit();
         showToast('🎙️ Transmisión manos libres activada');
@@ -428,10 +453,8 @@
 
     recognition.onend = function() {
       isListening = false;
-      // Reiniciar si el modo sigue activo
-      if (isHandsFreeMode && (currentChannel || currentPrivateUser)) {
-        try { recognition.start(); } catch(e) {}
-      }
+      // Reiniciar SIEMPRE (Background global)
+      try { recognition.start(); } catch(e) {}
     };
 
     try {
@@ -579,10 +602,13 @@
     info.classList.add('active');
     document.getElementById('speakerName').textContent = name;
     document.getElementById('speakerInitial').textContent = initials;
+    const avatar = document.getElementById('speakerAvatar');
     if (isSelf) {
-      document.getElementById('speakerAvatar').style.background = 'linear-gradient(135deg, var(--green), #00b060)';
+      avatar.style.background = 'linear-gradient(135deg, var(--green), #00b060)';
+      avatar.classList.add('is-self');
     } else {
-      document.getElementById('speakerAvatar').style.background = 'linear-gradient(135deg, var(--accent), #0080ff)';
+      avatar.style.background = 'linear-gradient(135deg, var(--accent), #0080ff)';
+      avatar.classList.remove('is-self');
     }
   }
 
