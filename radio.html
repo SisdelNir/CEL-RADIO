@@ -158,7 +158,7 @@
     /* Bottom Actions */
     .radio-bottom {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr; /* Cambiado a 3 columnas */
       gap: 10px;
       padding: 0 20px 24px 20px;
       z-index: 10;
@@ -272,6 +272,12 @@
       <div class="label" id="channelLabel">Estado de Conexión</div>
       <div class="name" id="channelName">🚫 Sin Conexión</div>
       <div class="sub" id="channelUsersText">Selecciona un canal o usuario</div>
+      
+      <!-- Micrófono Abierto (Solo Privado) -->
+      <button class="action-btn handsfree-btn" id="btnHandsFree" style="display:none; margin: 16px auto 0 auto; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 10px 20px; border-radius: 20px; font-weight: 700; cursor: pointer; align-items: center; justify-content: center; gap: 8px; font-size: 14px; transition: all 0.2s;">
+        <span class="icon" style="font-size: 18px;">📞</span>
+        <span>Activar Llamada</span>
+      </button>
     </div>
 
     <!-- Voice Indicator -->
@@ -315,10 +321,6 @@
       <button class="action-btn" id="btnPrivate">
         <span class="icon">👤</span>
         <span>Privado</span>
-      </button>
-      <button class="action-btn handsfree-btn" id="btnHandsFree">
-        <span class="icon">🎙️</span>
-        <span>Micrófono Abierto</span>
       </button>
       <button class="action-btn sos-btn" id="btnEmergency">
         <span class="icon">🚨</span>
@@ -364,6 +366,9 @@
 
   <!-- Socket.io para comunicación en tiempo real -->
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Mediasoup Client (WebRTC SFU) — se carga si existe, si no, usa fallback Socket.io -->
+  <script src="js/mediasoup-client.bundle.js" onerror="console.log('[Fallback] mediasoup-client no disponible, usando Socket.io para audio')"></script>
+  <script src="js/radiomedia-client.js"></script>
   <script src="js/radio.js"></script>
 </body>
 </html>

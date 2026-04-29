@@ -87,8 +87,12 @@
   // AudioContext for playback
   let globalAudioCtx = null;
 
+  // ═══ WebRTC Media Client (Mediasoup SFU) ═══
+  let radioMedia = null;
+  let useWebRTC = false; // Se activa si mediasoup-client está disponible
+
   // ============ INIT ============
-  function init() {
+  async function init() {
     loadTenantInfo();
     updateChannelDisplay();
     setupPTT();
@@ -97,6 +101,7 @@
     setupHandsFree();
     requestMicrophone();
     setupSocketReceivers();
+    await initWebRTC();
     
     // Unlock iOS audio on first touch
     const unlockAudio = () => {
@@ -164,6 +169,39 @@
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     });
     
+    // Recibir señal de que el otro usuario activó modo teléfono
+    socket.on('open_mic_request', (data) => {
+      // INTEGRIDAD: Solo aceptar si estamos en llamada privada con ese usuario exacto
+      if (!currentPrivateUser || !data.fromUserId) return;
+      if (currentPrivateUser.id !== data.fromUserId) return; // No es nuestro interlocutor
+      // Verificar que compartimos la misma sala privada
+      const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+      const _tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || sessionStorage.getItem('cel_tenant') || '{}');
+      const expectedRoom = `private_${_tenant.id}_${Math.min(loggedInUser.id, data.fromUserId)}_${Math.max(loggedInUser.id, data.fromUserId)}`;
+      if (currentRoom !== expectedRoom) return; // No somos parte de esa sala
+
+      if (!isHandsFreeMode) {
+        isHandsFreeMode = true;
+        const btn = document.getElementById('btnHandsFree');
+        btn.classList.add('active');
+        enterPhoneCallMode();
+        showToast(`📞 ${data.fromUserName} activó modo llamada`);
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      }
+    });
+    
+    // Recibir señal de que el otro usuario colgó
+    socket.on('open_mic_ended', (data) => {
+      if (isHandsFreeMode && currentPrivateUser) {
+        isHandsFreeMode = false;
+        const btn = document.getElementById('btnHandsFree');
+        btn.classList.remove('active');
+        exitPhoneCallMode();
+        stopTransmit(false);
+        showToast(`📞 ${data.fromUserName || 'El otro usuario'} terminó la llamada`);
+      }
+    });
+    
     // Conteo de usuarios en el canal
     socket.on('channel_user_count', (data) => {
       if (currentChannel && data.room && data.room.includes(`canal_${currentChannel.id}`)) {
@@ -173,7 +211,9 @@
       }
     });
     
-    // ── Recibir audio y reproducir con cola secuencial ──
+    // ── Recibir audio ──
+    // Si WebRTC (Mediasoup) está activo, el audio llega vía WebRTC tracks automáticamente.
+    // El fallback Socket.io solo se usa cuando Mediasoup NO está disponible.
     let speakerTimeout = null;
     const audioQueue = [];
     let isPlaying = false;
@@ -181,7 +221,6 @@
     async function playNextInQueue() {
       if (audioQueue.length === 0) {
         isPlaying = false;
-        // Ocultar speaker 2s después del último audio
         clearTimeout(speakerTimeout);
         speakerTimeout = setTimeout(() => hideSpeaker(), 2000);
         return;
@@ -189,8 +228,6 @@
       isPlaying = true;
       const { audioBlob, mimeType, sender } = audioQueue.shift();
       showSpeaker(sender.name, sender.initials, false);
-      
-      // Resetear timeout mientras se reproduce
       clearTimeout(speakerTimeout);
       speakerTimeout = setTimeout(() => hideSpeaker(), 10000);
       
@@ -216,9 +253,7 @@
             liveAudio.onended = () => { URL.revokeObjectURL(url); playNextInQueue(); };
             liveAudio.onerror = () => { URL.revokeObjectURL(url); playNextInQueue(); };
             await liveAudio.play();
-          } else {
-            playNextInQueue();
-          }
+          } else { playNextInQueue(); }
         } catch (fallbackErr) {
           console.warn('Audio fallback also failed:', fallbackErr);
           playNextInQueue();
@@ -226,17 +261,15 @@
       }
     }
     
+    // FALLBACK: Solo se usa cuando Mediasoup NO está activo
     socket.on('receive_voice', (data) => {
-      const { audioBlob, sender, mimeType } = data;
+      if (useWebRTC) return; // WebRTC maneja el audio directamente
+      const { audioBlob, sender, mimeType, room: senderRoom } = data;
       if (!audioBlob) return;
-      
-      // Encolar el audio
+      // INTEGRIDAD DE CANAL: Solo reproducir si el audio proviene de nuestra sala activa
+      if (senderRoom && currentRoom && senderRoom !== currentRoom) return;
       audioQueue.push({ audioBlob, sender, mimeType });
-      
-      // Si no hay nada reproduciéndose, empezar
-      if (!isPlaying) {
-        playNextInQueue();
-      }
+      if (!isPlaying) playNextInQueue();
     });
     
     // ====== ARBITRAJE DE VOZ (respuestas del servidor) ======
@@ -272,6 +305,11 @@
     });
     
     socket.on('SOMEONE_SPEAKING', (data) => {
+      // INTEGRIDAD: Descartar si el evento proviene de una sala distinta a la actual
+      if (currentRoom && data.room !== currentRoom) {
+        console.warn(`[Crosstalk UI Evitado] SOMEONE_SPEAKING de ${data.room} ignorado en ${currentRoom}`);
+        return;
+      }
       // Alguien más empezó a hablar — mostrar indicador
       if (!isTransmitting) {
         showSpeaker(data.speakerName, data.speakerName.slice(0,2).toUpperCase(), false);
@@ -375,6 +413,8 @@
         const roomName = `private_${tenant.id}_${Math.min(loggedInUser.id, currentPrivateUser.id)}_${Math.max(loggedInUser.id, currentPrivateUser.id)}`;
         currentRoom = roomName;
         socket.emit('join_channel', { channelId: roomName, empresaId: tenant.id, userName: loggedInUser.nombre, tipo: 'privado' });
+        // Unir WebRTC a la sala de medios
+        if (radioMedia && useWebRTC) radioMedia.joinRoom(roomName);
       }
     } else {
       labelEl.textContent = 'Canal Activo';
@@ -388,8 +428,12 @@
         const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
         currentRoom = `empresa_${tenant.id}_canal_${currentChannel.id}`;
         socket.emit('join_channel', { channelId: currentChannel.id, empresaId: tenant.id, userName: loggedInUser.nombre, tipo: 'grupo' });
+        // Unir WebRTC a la sala de medios
+        if (radioMedia && useWebRTC) radioMedia.joinRoom(currentRoom);
       }
     }
+    // Actualizar estado del botón de llamada según contexto
+    updateHandsFreeButton();
   }
 
   // Hands-free voice recognition state
@@ -397,14 +441,19 @@
   let isListening = false;
   let handsFreeTimer = null;
 
-  // ============ HANDS-FREE MODE (Wake Word: "Atento, Atento [Canal]") ============
+  // ============ MICRÓFONO ABIERTO (Solo Llamadas Privadas — Modo Teléfono) ============
+  let callTimerInterval = null;
+  let callStartTime = null;
+
   function setupHandsFree() {
     const btn = document.getElementById('btnHandsFree');
     if (!btn) return;
     
     btn.addEventListener('click', () => {
-      if (!currentChannel && !currentPrivateUser) {
-        showToast('⚠️ Conéctate a un canal primero');
+      // Solo funciona en llamadas privadas
+      if (!currentPrivateUser) {
+        showToast('📞 Solo disponible en llamadas privadas');
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         return;
       }
       
@@ -412,22 +461,138 @@
       btn.classList.toggle('active', isHandsFreeMode);
       
       if (isHandsFreeMode) {
-        // ABRIR MICRÓFONO INMEDIATAMENTE
-        showToast('🎙️ Micrófono Abierto — TRANSMITIENDO');
-        document.getElementById('voiceIndicator').style.display = 'block';
-        document.getElementById('voiceIndicator').textContent = '🟢 Micrófono Abierto — Transmitiendo en vivo';
-        
-        // Iniciar transmisión directa
+        // Activar modo teléfono
+        enterPhoneCallMode();
         startTransmit();
-      } else {
-        // CERRAR MICRÓFONO — desactivar ANTES de stopTransmit para que no reinicie
-        showToast('🔇 Micrófono Abierto DESACTIVADO');
-        document.getElementById('voiceIndicator').style.display = 'none';
         
-        // stopTransmit no reiniciará porque isHandsFreeMode ya es false
-        stopTransmit(false);
+        // Notificar al otro usuario para que también abra su micrófono
+        const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+        const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
+        if (socket && currentPrivateUser) {
+          const targetRoom = `empresa_${tenant.id}_user_${currentPrivateUser.id}`;
+          socket.emit('relay_to_user', {
+            targetRoom,
+            event: 'open_mic_request',
+            data: { fromUserId: loggedInUser.id, fromUserName: loggedInUser.nombre }
+          });
+        }
+      } else {
+        // Colgar
+        hangUpPhoneCall();
       }
     });
+  }
+
+  function enterPhoneCallMode() {
+    // Cambiar PTT a botón de COLGAR
+    const pttBtn = document.getElementById('pttBtn');
+    const pttLabel = document.getElementById('pttLabel');
+    const pttHint = document.getElementById('pttHint');
+    pttBtn.classList.add('active');
+    pttBtn.style.background = 'linear-gradient(145deg, #dc2626, #b91c1c)';
+    pttBtn.style.boxShadow = '0 0 30px rgba(220, 38, 38, 0.4)';
+    pttBtn.style.borderColor = 'rgba(220, 38, 38, 0.5)';
+    pttLabel.textContent = 'COLGAR';
+    pttHint.textContent = '';
+    
+    // Mostrar indicador de llamada con cronómetro
+    callStartTime = Date.now();
+    const voiceInd = document.getElementById('voiceIndicator');
+    voiceInd.style.display = 'block';
+    voiceInd.style.background = 'rgba(16, 185, 129, 0.15)';
+    voiceInd.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+    updateCallTimer();
+    callTimerInterval = setInterval(updateCallTimer, 1000);
+    
+    showToast(`📞 Llamada activa con ${currentPrivateUser.name}`);
+    if (navigator.vibrate) navigator.vibrate(100);
+    
+    // Hacer que el botón PTT funcione como COLGAR
+    pttBtn._phoneCallHandler = () => {
+      isHandsFreeMode = false;
+      document.getElementById('btnHandsFree').classList.remove('active');
+      hangUpPhoneCall();
+    };
+    pttBtn.addEventListener('click', pttBtn._phoneCallHandler);
+  }
+
+  function updateCallTimer() {
+    if (!callStartTime) return;
+    const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+    const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const secs = String(elapsed % 60).padStart(2, '0');
+    const voiceInd = document.getElementById('voiceIndicator');
+    voiceInd.textContent = `📞 En llamada con ${currentPrivateUser ? currentPrivateUser.name : '...'} — ${mins}:${secs}`;
+  }
+
+  function exitPhoneCallMode() {
+    // Restaurar botón PTT
+    const pttBtn = document.getElementById('pttBtn');
+    pttBtn.classList.remove('active');
+    pttBtn.style.background = '';
+    pttBtn.style.boxShadow = '';
+    pttBtn.style.borderColor = '';
+    document.getElementById('pttLabel').textContent = 'HABLAR';
+    document.getElementById('pttHint').textContent = 'Mantener presionado para hablar';
+    
+    // Quitar handler de colgar
+    if (pttBtn._phoneCallHandler) {
+      pttBtn.removeEventListener('click', pttBtn._phoneCallHandler);
+      pttBtn._phoneCallHandler = null;
+    }
+    
+    // Detener cronómetro
+    clearInterval(callTimerInterval);
+    callTimerInterval = null;
+    callStartTime = null;
+    
+    // Ocultar indicador
+    const voiceInd = document.getElementById('voiceIndicator');
+    voiceInd.style.display = 'none';
+    voiceInd.style.background = '';
+    voiceInd.style.borderColor = '';
+  }
+
+  function hangUpPhoneCall() {
+    // Notificar al otro usuario
+    const loggedInUser = JSON.parse(sessionStorage.getItem('cel_user') || '{}');
+    const tenant = JSON.parse(sessionStorage.getItem('cel_empresa') || '{}');
+    if (socket && currentPrivateUser) {
+      const targetRoom = `empresa_${tenant.id}_user_${currentPrivateUser.id}`;
+      socket.emit('relay_to_user', {
+        targetRoom,
+        event: 'open_mic_ended',
+        data: { fromUserId: loggedInUser.id, fromUserName: loggedInUser.nombre }
+      });
+    }
+    
+    exitPhoneCallMode();
+    stopTransmit(false);
+    showToast('📞 Llamada terminada');
+  }
+
+  // Actualizar estado visual del botón Micrófono Abierto
+  function updateHandsFreeButton() {
+    const btn = document.getElementById('btnHandsFree');
+    if (!btn) return;
+    if (currentPrivateUser) {
+      // Mostrar solo en llamada privada
+      btn.style.display = 'flex';
+      btn.style.pointerEvents = 'auto';
+      btn.style.cursor = 'pointer';
+      btn.querySelector('span:last-child').textContent = isHandsFreeMode ? 'Llamada Activa' : 'Activar Llamada';
+      btn.title = 'Activar llamada de voz continua';
+    } else {
+      // Ocultar completamente fuera de llamada privada
+      btn.style.display = 'none';
+      // Si estaba en modo llamada, desactivar
+      if (isHandsFreeMode) {
+        isHandsFreeMode = false;
+        btn.classList.remove('active');
+        exitPhoneCallMode();
+        stopTransmit(false);
+      }
+    }
   }
   
   function startVoiceRecognition() {
@@ -592,7 +757,7 @@
     });
   }
 
-  function startTransmit() {
+  async function startTransmit() {
     if (isTransmitting) return;
     if (!currentChannel && !currentPrivateUser) {
       showToast('⚠️ Debes conectarte a un canal primero');
@@ -632,50 +797,59 @@
         showToast('⏱️ Transmisión terminada por inactividad (15s)');
         stopTransmit(false);
       }, MAX_LOCAL_SPEAK);
-      
-      // Iniciar el monitoreo de audio para resetear el timer mientras haya voz
       startVAD();
     }
-    
-    // GRABAR EN CICLOS CORTOS (cada blob es completo y decodificable)
-    const CYCLE_MS = 1000; // 1 segundo por ciclo = baja latencia
+
     const sender = {
       name: loggedInUser.nombre || 'Piloto',
       initials: (loggedInUser.nombre || 'P').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase()
     };
-    
+
+    // ═══ WebRTC (Mediasoup) — Audio directo por UDP ═══
+    if (useWebRTC && radioMedia) {
+      const ok = await radioMedia.startProducing(micStream, sender);
+      if (ok) {
+        console.log('[PTT] Transmitiendo vía WebRTC (UDP/OPUS)');
+      } else {
+        console.warn('[PTT] WebRTC falló, usando fallback Socket.io');
+        startFallbackRecording(sender);
+      }
+      return;
+    }
+
+    // ═══ FALLBACK: Socket.io (TCP) — Ciclos de grabación ═══
+    startFallbackRecording(sender);
+  }
+
+  // Fallback: Grabar en ciclos y enviar por Socket.io (cuando no hay Mediasoup)
+  function startFallbackRecording(sender) {
+    const CYCLE_MS = 1000;
     function recordCycle() {
       if (!isTransmitting || !micStream) return;
       try {
         mediaRecorder = new MediaRecorder(micStream);
         const chunks = [];
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        
         mediaRecorder.ondataavailable = event => {
           if (event.data.size > 0) chunks.push(event.data);
         };
-        
         mediaRecorder.onstop = () => {
           if (chunks.length > 0 && socket && currentRoom) {
             const audioBlob = new Blob(chunks, { type: mimeType });
             socket.emit('transmit_voice', { room: currentRoom, audioBlob, mimeType, sender });
           }
-          // Siguiente ciclo inmediato
           if (isTransmitting) setTimeout(recordCycle, 20);
         };
-        
         mediaRecorder.start();
         setTimeout(() => {
-          if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-          }
+          if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
         }, CYCLE_MS);
       } catch (e) {
         console.warn('Error starting MediaRecorder cycle:', e);
       }
     }
     recordCycle();
-    console.log('[PTT] Grabando en ciclos de ' + CYCLE_MS + 'ms');
+    console.log('[PTT] Fallback: Grabando en ciclos de 1s vía Socket.io');
   }
 
   function stopTransmit(abort) {
@@ -692,6 +866,12 @@
 
     hideSpeaker();
 
+    // ═══ Detener WebRTC Producer ═══
+    if (useWebRTC && radioMedia) {
+      radioMedia.stopProducing();
+    }
+
+    // ═══ Detener Fallback MediaRecorder ═══
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       if (abort) mediaRecorder.onstop = null;
       mediaRecorder.stop();
@@ -936,10 +1116,33 @@
     setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
+  // ═══ INIT WEBRTC ═══
+  async function initWebRTC() {
+    if (!window.RadioMediaClient) {
+      console.log('[WebRTC] mediasoup-client no disponible, usando fallback Socket.io');
+      return;
+    }
+    radioMedia = new window.RadioMediaClient();
+    const ok = await radioMedia.init(socket);
+    if (ok) {
+      useWebRTC = true;
+      console.log('[WebRTC] ✅ Mediasoup SFU ACTIVO — Audio por WebRTC (UDP)');
+      // Registrar callbacks para UI
+      radioMedia.onNewSpeaker((name, initials) => {
+        if (!isTransmitting) showSpeaker(name, initials || name.slice(0,2).toUpperCase(), false);
+      });
+      radioMedia.onSpeakerStop((name) => {
+        if (!isTransmitting) hideSpeaker();
+      });
+    } else {
+      console.log('[WebRTC] No se pudo inicializar, usando fallback Socket.io');
+    }
+  }
+
   // ============ BOOT ============
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    init(); // Si el DOM ya cargó mientras se hacían los fetch(), ejecutar init() directamente
+    init();
   }
 })();
