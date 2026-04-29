@@ -376,7 +376,7 @@ io.on('connection', (socket) => {
         callback(tempRoom.router.rtpCapabilities);
       } catch (err) {
         console.error('[Mediasoup] Error getRouterCapabilities:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 
@@ -415,7 +415,7 @@ io.on('connection', (socket) => {
         callback(existingProducers);
       } catch (err) {
         console.error('[Mediasoup] Error ms_joinRoom:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 
@@ -452,7 +452,7 @@ io.on('connection', (socket) => {
         callback(params);
       } catch (err) {
         console.error('[Mediasoup] Error ms_createTransport:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 
@@ -484,7 +484,7 @@ io.on('connection', (socket) => {
         callback({});
       } catch (err) {
         console.error('[Mediasoup] Error ms_connectTransport:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 
@@ -528,7 +528,7 @@ io.on('connection', (socket) => {
         callback({ producerId: producer.id });
       } catch (err) {
         console.error('[Mediasoup] Error ms_produce:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 
@@ -594,7 +594,7 @@ io.on('connection', (socket) => {
         console.log(`[Mediasoup] Consumer creado: ${consumer.id} consume producer ${producerId}`);
       } catch (err) {
         console.error('[Mediasoup] Error ms_consume:', err);
-        callback({ error: err.message });
+        if (typeof callback === 'function') callback({ error: err.message });
       }
     });
 

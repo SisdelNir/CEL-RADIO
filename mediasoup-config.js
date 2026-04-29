@@ -23,7 +23,7 @@ module.exports = {
         kind: 'audio',
         mimeType: 'audio/opus',
         clockRate: 48000,
-        channels: 1, // Mono para radio PTT (menos ancho de banda)
+        channels: 2, // OPUS REQUIRES 2 channels for Mediasoup/WebRTC SDP standard
         parameters: {
           'sprop-stereo': 0,
           'useinbandfec': 1,  // Forward Error Correction (recupera paquetes perdidos)
